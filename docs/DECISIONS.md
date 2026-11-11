@@ -52,3 +52,42 @@ Formato curto: **contexto → decisão → consequência**.
 ## ADR-010 — Motion e drag & drop
 
 - **Decisão:** `motion` para molas (criticamente amortecidas por padrão; leve bounce apenas ao soltar um arrasto ou em sheets) e `@dnd-kit` para arrastar/redimensionar. `prefers-reduced-motion`, `prefers-reduced-transparency` e `prefers-contrast` são tratados nos tokens e primitivos de UI.
+
+## ADR-011 — Server Components como casca, dados buscados no cliente
+
+- **Contexto:** a API é um serviço separado, com URL pública (navegador) diferente da interna (rede do Docker), e quase toda tela é interativa.
+- **Decisão:** `layout`, páginas, shell e metadados são Server Components; cada página rende **um** componente cliente de tela. Os dados são buscados no cliente com TanStack Query (cache, polling dos jobs de IA, optimistic updates).
+- **Consequência:** sem pré-renderização de dados no servidor (aceitável para um app pessoal atrás de login futuro). Evolução: prefetch + `HydrationBoundary` com uma URL interna da API.
+
+## ADR-012 — Semana de segunda a domingo
+
+- **Decisão:** a rotina "da semana" cobre segunda → domingo (`startOfWeek` em `packages/shared`), que é como a semana de trabalho/estudo é planejada.
+
+## ADR-013 — O que sobrevive a um replanejamento
+
+- **Decisão:** blocos concluídos sempre ficam; um bloco em andamento fica; blocos não concluídos no passado são descartados (o tempo deles é replanejado); blocos futuros ficam se estiverem travados ou fora do período planejado; o resto é regenerado. Os minutos a alocar de cada tarefa são `estimado − já coberto pelos blocos mantidos`.
+- **Restauração:** blocos concluídos voltam como estavam; blocos não concluídos só voltam se ainda forem válidos hoje (futuro, sem conflito, antes do prazo, tarefa ainda aberta). A quantidade descartada aparece no aviso da nova versão.
+
+## ADR-014 — Ajuste manual: só conflitos reais bloqueiam
+
+- **Decisão:** ao mover/redimensionar, valem as regras duras (compromissos, almoço, outros blocos, janela diária, prazo, bloco máximo, passado). O intervalo mínimo entre blocos e o total estimado da tarefa são critérios do planejador, não travas para o usuário. A mesma função `checkPlacement` roda no front (feedback durante o arrasto) e na API (fonte da verdade).
+- **Teclado:** como alternativa acessível ao arrasto, os detalhes do bloco têm um formulário de dia/início/fim com a mesma validação.
+
+## ADR-015 — Estimativa sem IA em vez de erro
+
+- **Decisão:** se a IA estiver indisponível ao estimar uma tarefa (sem chave, 429 após as tentativas, resposta inválida após o retry), a tarefa recebe uma estimativa heurística marcada como `HEURISTIC` ("Estimativa sem IA"), com opção de pedir de novo ou ajustar manualmente. `FAILED` fica reservado a erros inesperados.
+- **Motivo:** sem estimativa a tarefa não pode ser planejada; o app precisa funcionar de ponta a ponta mesmo sem chave de API.
+
+---
+
+# Pendências e riscos conhecidos
+
+- **Modelo de retry do Gemini:** `GEMINI_RETRY_MODEL=gemini-3.6-flash` foi mantido como especificado, mas a referência oficial consultada lista `gemini-3.8-flash` e `gemini-3.5-flash-lite` como modelos atuais e não menciona `gemini-3.6-flash`. Se o nome não existir, o retry falha e o app cai no heurístico (comportamento seguro). Confirme o nome e ajuste a variável.
+- **Sem chamada real ao Gemini nos testes:** a integração foi testada com o SDK mockado; falta um smoke manual com uma chave real (formato do `responseJsonSchema`, limites do free tier).
+- **Jobs in-process (ADR-003):** um restart da API durante uma geração marca a rotina como `FAILED` (o usuário gera de novo). Com mais de uma instância da API, o rate limit e a fila de estimativas deixam de ser globais — use uma fila persistente.
+- **Edição durante a geração:** blocos movidos manualmente enquanto um job está rodando podem não entrar na nova versão (o job usa um snapshot do início).
+- **Imagem da API (~750 MB):** inclui a CLI do Prisma e seus engines para rodar `migrate deploy` no start. Dá para reduzir separando as migrations em um job próprio.
+- **CI:** o workflow foi validado localmente (mesmos comandos e build das imagens), mas ainda não rodou no GitHub — o repositório não tem remoto configurado.
+- **Provedores Anthropic/Ollama:** stubs documentados, não implementados.
+- **Sem autenticação:** usuário único de seed; não exponha a API publicamente antes de adicionar login (ver `docs/SUPABASE.md`).
+- **Drag & drop por toque:** usa pressionar-e-segurar (220 ms) para não brigar com o scroll; testado em emulação, não em aparelhos físicos.
