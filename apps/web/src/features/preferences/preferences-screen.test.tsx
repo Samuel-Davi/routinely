@@ -26,6 +26,7 @@ describe('PreferencesScreen', () => {
 
     await userEvent.selectOptions(screen.getByLabelText('Duração máxima de um bloco'), '60');
     await userEvent.selectOptions(screen.getByLabelText('Fuso'), 'America/Sao_Paulo');
+    await userEvent.selectOptions(screen.getByLabelText('Tempo de deslocamento'), '0');
     expect(screen.getByText('Alterações não salvas')).toBeInTheDocument();
     await userEvent.click(save);
 
@@ -34,6 +35,7 @@ describe('PreferencesScreen', () => {
         ...DEFAULT_PREFERENCES,
         maxFocusBlockMinutes: 60,
         timezone: 'America/Sao_Paulo',
+        travelMinutes: 0,
       }),
     );
     expect(await screen.findByText('Preferências salvas')).toBeInTheDocument();

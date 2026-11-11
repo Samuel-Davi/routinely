@@ -1,5 +1,8 @@
 import {
+  MINUTE_MS,
   timeToMinutes,
+  travelInterval,
+  utcToZonedParts,
   type DateString,
   type FixedCommitment,
   type Preferences,
@@ -51,6 +54,11 @@ export function DayColumn({
   overlay,
 }: DayColumnProps) {
   const lunch = boxFor(timeToMinutes(prefs.lunchStart), timeToMinutes(prefs.lunchEnd), bounds);
+  const travelRange = travelInterval(date, commitments, prefs);
+  const travelStart = travelRange ? utcToZonedParts(travelRange.start, prefs.timezone).minutes : 0;
+  const travel = travelRange
+    ? boxFor(travelStart, travelStart + (travelRange.end - travelRange.start) / MINUTE_MS, bounds)
+    : null;
   const dayCommitments = commitmentsForDay(date, commitments, bounds);
   const dayBlocks = blocksForDay(date, blocks, bounds, prefs.timezone);
   const nowTop = now === null ? null : nowOffset(date, now, bounds, prefs.timezone);
@@ -80,6 +88,16 @@ export function DayColumn({
           style={{ top: lunch.top, height: lunch.height }}
         >
           Almoço / descanso
+        </div>
+      ) : null}
+
+      {travel ? (
+        <div
+          data-testid="travel-band"
+          className="absolute inset-x-0 flex items-center justify-center bg-fill text-caption text-label-tertiary"
+          style={{ top: travel.top, height: travel.height }}
+        >
+          Deslocamento
         </div>
       ) : null}
 

@@ -87,6 +87,8 @@ model FixedCommitment {
   endTime    String
   category   CommitmentCategory @default(OTHER)
   color      String             @default("blue")
+  // Reserve Preferences.travelMinutes after this commitment (last one of the day wins)
+  requiresTravel Boolean        @default(false)
   createdAt  DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt  DateTime           @updatedAt @db.Timestamptz(3)
 
@@ -130,6 +132,8 @@ model Preferences {
   minBreakMinutes      Int      @default(15)
   lunchStart           String   @default("12:00")
   lunchEnd             String   @default("13:00")
+  // Minutes blocked after the last commitment that requires travel; 0 disables it
+  travelMinutes        Int      @default(60)
   timezone             String   @default("America/Manaus")
   updatedAt            DateTime @updatedAt @db.Timestamptz(3)
 

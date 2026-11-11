@@ -91,6 +91,10 @@ Formato curto: **contexto → decisão → consequência**.
 
 ---
 
+## ADR-018 — Deslocamento como bloco reservado, sobreposição só avisa
+
+Compromissos têm `requiresTravel` (padrão falso) e Ajustes tem `travelMinutes` (padrão 60; 0 desativa). Após o **último** compromisso do dia que exige deslocamento, `travelMinutes` viram um intervalo ocupado, recortado na janela diária. Ele entra em `computeFreeWindows` e em `checkPlacement` (`OVERLAPS_TRAVEL`), então vale para IA, heurístico e arrasto manual. Se o compromisso seguinte começa antes do fim do deslocamento, a UI mostra aviso. Compromissos fixos sobrepostos não são bloqueados: a API devolve `overlapsWith`, a UI avisa, e o planejador trata a união dos intervalos. Migration aditiva.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `GEMINI_RETRY_MODEL=gemini-3.6-flash` foi mantido como especificado, mas a referência oficial consultada lista `gemini-3.8-flash` e `gemini-3.5-flash-lite` como modelos atuais e não menciona `gemini-3.6-flash`. Se o nome não existir, o retry falha e o app cai no heurístico (comportamento seguro). Confirme o nome e ajuste a variável.

@@ -14,6 +14,8 @@ export const fixedCommitmentInputSchema = z
     endTime: timeStringSchema,
     category: commitmentCategorySchema,
     color: commitmentColorSchema,
+    /** Reserve travel time after this commitment (e.g. in-person classes). */
+    requiresTravel: z.boolean().default(false),
   })
   .refine((value) => value.endTime > value.startTime, {
     path: ['endTime'],
@@ -29,6 +31,11 @@ export const fixedCommitmentSchema = z.object({
   endTime: timeStringSchema,
   category: commitmentCategorySchema,
   color: commitmentColorSchema,
+  requiresTravel: z.boolean(),
+  /** Other commitments that share time with this one (informational, never blocking). */
+  overlapsWith: z
+    .array(z.object({ id: idSchema, title: z.string(), daysOfWeek: z.array(z.number().int()) }))
+    .default([]),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

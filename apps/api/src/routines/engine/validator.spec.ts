@@ -66,6 +66,22 @@ describe('validateAllocations', () => {
     expect(codes(result)).toEqual(['OVERLAPS_LUNCH']);
   });
 
+  it('rejects a block inside the travel time', () => {
+    const travelling = context({
+      prefs: { ...prefs, travelMinutes: 60 },
+      commitments: [
+        { id: 'c', daysOfWeek: [1], startTime: '16:00', endTime: '18:00', requiresTravel: true },
+      ],
+    });
+    const result = validateAllocations(
+      [block('a', '2026-11-09T18:15', '2026-11-09T19:15')],
+      [task('a')],
+      travelling,
+    );
+    expect(codes(result)).toEqual(['OVERLAPS_TRAVEL']);
+    expect(result.issues[0]?.message).toContain('deslocamento');
+  });
+
   it('rejects a block outside the daily window', () => {
     const result = validateAllocations(
       [block('a', '2026-11-10T06:00', '2026-11-10T07:00')],

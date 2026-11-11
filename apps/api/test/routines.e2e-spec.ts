@@ -245,6 +245,31 @@ describe('Routines (e2e, mocked LLM)', () => {
     expect(tasks.find((task) => task.id === impossible.id)?.status).toBe('TODO');
   });
 
+  it('keeps the travel time after the last in-person commitment free of tasks', async () => {
+    // Monday: work ends 17:00 and requires travel → nothing before 18:00.
+    const commitments = (await http().get('/fixed-commitments')).body as {
+      id: string;
+      startTime: string;
+    }[];
+    const afternoon = commitments.find((item) => item.startTime === '13:00')!;
+    await http()
+      .put(`/fixed-commitments/${afternoon.id}`)
+      .send({ ...work[1], requiresTravel: true })
+      .expect(200);
+    await http()
+      .put('/preferences')
+      .send({ ...DEFAULT_PREFERENCES, travelMinutes: 60 })
+      .expect(200);
+    await createTask('Relatório', 180, '2026-11-09T22:00');
+
+    const routine = await generate();
+    expect(routine.blocks.map((block) => local(block.start))).toEqual([
+      '2026-11-09T07:00',
+      '2026-11-09T18:00',
+      '2026-11-09T19:45',
+    ]);
+  });
+
   it('plans up to the latest deadline, capped at four weeks', async () => {
     await createTask('Longe', 60, '2026-11-25T22:00');
     const routine = await generate({ untilLastDeadline: true });

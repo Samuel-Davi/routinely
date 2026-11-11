@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { preferencesSchema, type Preferences } from '@routinely/shared';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
 import { PageHeader } from '@/components/shell/app-shell';
 import {
   Button,
@@ -35,6 +36,7 @@ const TIMEZONES = [
 
 const BLOCK_OPTIONS = [30, 45, 60, 90, 120, 150, 180, 240];
 const BREAK_OPTIONS = [0, 15, 30, 45, 60];
+const TRAVEL_OPTIONS = [0, 15, 30, 45, 60, 75, 90, 120];
 
 function Section({
   title,
@@ -63,7 +65,9 @@ export function PreferencesScreen() {
     handleSubmit,
     reset,
     formState: { errors, isDirty },
-  } = useForm<Preferences>({ resolver: zodResolver(preferencesSchema) });
+  } = useForm<z.input<typeof preferencesSchema>, unknown, Preferences>({
+    resolver: zodResolver(preferencesSchema),
+  });
 
   useEffect(() => {
     if (data) reset(data);
@@ -153,6 +157,24 @@ export function PreferencesScreen() {
               {BREAK_OPTIONS.map((minutes) => (
                 <option key={minutes} value={minutes}>
                   {minutes === 0 ? 'Sem intervalo' : formatDuration(minutes)}
+                </option>
+              ))}
+            </Select>
+          </Section>
+
+          <Section
+            title="Deslocamento"
+            description="Tempo reservado depois do último compromisso do dia marcado com “Exige deslocamento depois”."
+          >
+            <Select
+              label="Tempo de deslocamento"
+              error={errors.travelMinutes?.message}
+              containerClassName="sm:col-span-2"
+              {...register('travelMinutes', { valueAsNumber: true })}
+            >
+              {TRAVEL_OPTIONS.map((minutes) => (
+                <option key={minutes} value={minutes}>
+                  {minutes === 0 ? 'Desativado' : formatDuration(minutes)}
                 </option>
               ))}
             </Select>

@@ -8,6 +8,7 @@ import {
   expandCommitments,
   lunchInterval,
   subtractIntervals,
+  travelInterval,
   type Interval,
 } from '@routinely/shared';
 import type { PlanningContext } from './types';
@@ -22,7 +23,8 @@ export function padBlocks(blocks: readonly Interval[], minBreakMinutes: number):
 
 /**
  * Deterministic free time: for every day in the range, the daily window minus the
- * protected lunch, fixed commitments and existing task blocks (plus their break),
+ * protected lunch, fixed commitments, the travel time after the last commitment that
+ * requires it and existing task blocks (plus their break),
  * never before `now`, snapped inward to the 15 minute grid.
  */
 export function computeFreeWindows(
@@ -43,7 +45,13 @@ export function computeFreeWindows(
   const windows: Interval[] = [];
   for (const date of dateRange(context.rangeStart, days)) {
     const day = dayWindow(date, prefs);
-    const busy = [lunchInterval(date, prefs), ...commitments, ...taskBlocks];
+    const travel = travelInterval(date, context.commitments, prefs);
+    const busy = [
+      lunchInterval(date, prefs),
+      ...commitments,
+      ...taskBlocks,
+      ...(travel ? [travel] : []),
+    ];
     for (const free of subtractIntervals(day, busy)) {
       const start = Math.max(ceilToGrid(free.start), earliest);
       const end = Math.floor(free.end / GRID_MS) * GRID_MS;

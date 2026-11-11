@@ -44,6 +44,7 @@ const PLACEMENT_MESSAGES: Record<PlacementViolation, string> = {
   OUTSIDE_DAY_WINDOW: 'está fora da janela diária',
   OVERLAPS_LUNCH: 'invade o horário protegido de almoço/descanso',
   OVERLAPS_COMMITMENT: 'sobrepõe um compromisso fixo',
+  OVERLAPS_TRAVEL: 'cai no tempo de deslocamento',
   OVERLAPS_BLOCK: 'sobrepõe um bloco travado',
   AFTER_DEADLINE: 'termina depois do prazo da tarefa',
   EXCEEDS_MAX_BLOCK: 'excede a duração máxima de um bloco de foco',

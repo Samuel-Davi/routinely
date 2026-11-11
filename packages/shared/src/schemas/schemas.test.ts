@@ -23,7 +23,13 @@ const commitment = {
 
 describe('fixedCommitmentInputSchema', () => {
   it('accepts a valid commitment', () => {
-    expect(fixedCommitmentInputSchema.parse(commitment)).toEqual(commitment);
+    expect(fixedCommitmentInputSchema.parse(commitment)).toEqual({
+      ...commitment,
+      requiresTravel: false,
+    });
+    expect(
+      fixedCommitmentInputSchema.parse({ ...commitment, requiresTravel: true }).requiresTravel,
+    ).toBe(true);
   });
 
   it.each([

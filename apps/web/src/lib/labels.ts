@@ -84,6 +84,7 @@ export const VIOLATION_LABEL: Record<PlacementViolation, string> = {
   OUTSIDE_DAY_WINDOW: 'Fora da sua janela diária',
   OVERLAPS_LUNCH: 'Invade o horário de almoço/descanso',
   OVERLAPS_COMMITMENT: 'Conflita com um compromisso fixo',
+  OVERLAPS_TRAVEL: 'Cai no tempo de deslocamento',
   OVERLAPS_BLOCK: 'Conflita com outro bloco',
   AFTER_DEADLINE: 'Passa do prazo da tarefa',
   EXCEEDS_MAX_BLOCK: 'Maior que a duração máxima de um bloco',

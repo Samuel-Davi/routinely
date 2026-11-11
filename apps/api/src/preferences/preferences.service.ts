@@ -14,6 +14,7 @@ export function toPreferencesDto(row: PreferencesRow): Preferences {
     minBreakMinutes: row.minBreakMinutes,
     lunchStart: row.lunchStart,
     lunchEnd: row.lunchEnd,
+    travelMinutes: row.travelMinutes,
     timezone: row.timezone,
   };
 }

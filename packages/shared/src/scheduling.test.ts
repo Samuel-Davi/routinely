@@ -4,14 +4,17 @@ import {
   dayWindow,
   durationMinutes,
   expandCommitments,
+  findCommitmentOverlaps,
+  findTravelConflicts,
   lunchInterval,
   mergeIntervals,
   overlaps,
   subtractIntervals,
+  travelInterval,
   type PlacementContext,
   type SchedulingPreferences,
 } from './scheduling';
-import { fromLocalDateTime } from './time';
+import { fromLocalDateTime, toLocalDateTime } from './time';
 
 const prefs: SchedulingPreferences = {
   dayStart: '07:00',
@@ -178,5 +181,114 @@ describe('checkPlacement', () => {
     expect(violations).toEqual(
       expect.arrayContaining(['OVERLAPS_COMMITMENT', 'OVERLAPS_LUNCH', 'EXCEEDS_MAX_BLOCK']),
     );
+  });
+});
+
+describe('travel time', () => {
+  const travelPrefs = { ...prefs, travelMinutes: 60 };
+  const klass = (
+    id: string,
+    days: number[],
+    startTime: string,
+    endTime: string,
+    requiresTravel = true,
+  ) => ({
+    id,
+    daysOfWeek: days,
+    startTime,
+    endTime,
+    requiresTravel,
+  });
+  const show = (interval: { start: number; end: number } | null) =>
+    interval
+      ? `${toLocalDateTime(interval.start, prefs.timezone)}–${toLocalDateTime(interval.end, prefs.timezone).slice(11)}`
+      : null;
+
+  it('is absent on a day without a commitment that requires travel', () => {
+    const commitments = [
+      klass('remote', [2], '08:00', '10:00', false),
+      klass('other-day', [3], '14:00', '16:00'),
+    ];
+    expect(travelInterval('2026-11-10', commitments, travelPrefs)).toBeNull();
+    expect(travelInterval('2026-11-10', [], travelPrefs)).toBeNull();
+  });
+
+  it('follows the single class of the day', () => {
+    expect(
+      show(travelInterval('2026-11-10', [klass('a', [2], '14:00', '16:00')], travelPrefs)),
+    ).toBe('2026-11-10T16:00–17:00');
+  });
+
+  it('follows only the last class when there are several', () => {
+    const commitments = [
+      klass('a', [2], '14:00', '16:00'),
+      klass('b', [2], '16:00', '18:00'),
+      klass('remote', [2], '18:15', '21:15', false),
+    ];
+    expect(show(travelInterval('2026-11-10', commitments, travelPrefs))).toBe(
+      '2026-11-10T18:00–19:00',
+    );
+  });
+
+  it('is clipped when the class ends close to the end of the daily window', () => {
+    expect(
+      show(travelInterval('2026-11-10', [klass('a', [2], '19:30', '21:30')], travelPrefs)),
+    ).toBe('2026-11-10T21:30–22:00');
+  });
+
+  it('disappears when it would start at or after the end of the window, or when disabled', () => {
+    expect(
+      travelInterval('2026-11-10', [klass('a', [2], '20:00', '22:00')], travelPrefs),
+    ).toBeNull();
+    expect(
+      travelInterval('2026-11-10', [klass('a', [2], '14:00', '16:00')], {
+        ...prefs,
+        travelMinutes: 0,
+      }),
+    ).toBeNull();
+    expect(travelInterval('2026-11-10', [klass('a', [2], '14:00', '16:00')], prefs)).toBeNull();
+  });
+
+  it('blocks task placement during the travel time', () => {
+    const travelContext = {
+      prefs: travelPrefs,
+      commitments: [klass('a', [2], '14:00', '16:00')],
+      otherBlocks: [],
+    };
+    expect(checkPlacement(block('2026-11-10T16:30', '2026-11-10T17:30'), travelContext)).toEqual([
+      'OVERLAPS_TRAVEL',
+    ]);
+    expect(checkPlacement(block('2026-11-10T17:00', '2026-11-10T18:00'), travelContext)).toEqual(
+      [],
+    );
+  });
+
+  it('reports commitments that start before the travel is over', () => {
+    const commitments = [
+      klass('class', [2, 4], '16:00', '18:00'),
+      klass('course', [2, 4], '18:15', '21:15', false),
+      klass('late', [2], '19:00', '20:00', false),
+    ];
+    expect(findTravelConflicts(commitments, 60)).toEqual([
+      { commitmentId: 'class', nextCommitmentId: 'course', dayOfWeek: 2, travelEnd: '19:00' },
+      { commitmentId: 'class', nextCommitmentId: 'course', dayOfWeek: 4, travelEnd: '19:00' },
+    ]);
+    expect(findTravelConflicts(commitments, 15)).toEqual([]);
+    expect(findTravelConflicts(commitments, 0)).toEqual([]);
+  });
+});
+
+describe('findCommitmentOverlaps', () => {
+  it('finds pairs that share time on a common weekday', () => {
+    const commitments = [
+      { id: 'etica', daysOfWeek: [5], startTime: '16:00', endTime: '18:00' },
+      { id: 'piola', daysOfWeek: [5, 6], startTime: '17:00', endTime: '19:00' },
+      { id: 'touching', daysOfWeek: [5], startTime: '19:00', endTime: '20:00' },
+      { id: 'other-day', daysOfWeek: [1], startTime: '16:00', endTime: '18:00' },
+    ];
+    expect(findCommitmentOverlaps(commitments)).toEqual([
+      { a: 'etica', b: 'piola', daysOfWeek: [5] },
+    ]);
+    expect(findCommitmentOverlaps([])).toEqual([]);
   });
 });

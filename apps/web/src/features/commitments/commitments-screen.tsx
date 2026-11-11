@@ -1,10 +1,11 @@
 'use client';
 
-import type { FixedCommitment } from '@routinely/shared';
+import { findTravelConflicts, type FixedCommitment } from '@routinely/shared';
 import { useState } from 'react';
 import { PageHeader } from '@/components/shell/app-shell';
 import {
   Badge,
+  Banner,
   Button,
   ConfirmSheet,
   EmptyState,
@@ -16,7 +17,8 @@ import {
   useToast,
 } from '@/components/ui';
 import { errorMessage } from '@/lib/api-client';
-import { CATEGORY_LABEL, formatWeekdays } from '@/lib/labels';
+import { usePreferences } from '@/features/preferences/api';
+import { CATEGORY_LABEL, WEEKDAY_SHORT, formatWeekdays } from '@/lib/labels';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { panelClosed, panelOpened, selectPanel } from '@/lib/store/ui-slice';
 import { useCommitments, useDeleteCommitment } from './api';
@@ -29,6 +31,9 @@ export function CommitmentsScreen() {
   const remove = useDeleteCommitment();
   const toast = useToast();
   const [deleting, setDeleting] = useState<FixedCommitment | null>(null);
+  const travelMinutes = usePreferences().data?.travelMinutes ?? 0;
+  const travelConflicts = data ? findTravelConflicts(data, travelMinutes) : [];
+  const titleOf = (id: string) => data?.find((item) => item.id === id)?.title ?? '';
 
   const formOpen = panel?.type === 'commitment-form';
   const editing = formOpen ? data?.find((item) => item.id === panel.commitmentId) : undefined;
@@ -79,41 +84,67 @@ export function CommitmentsScreen() {
           }
         />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((commitment) => (
-            <li
-              key={commitment.id}
-              style={toneStyle(commitment.color)}
-              className="relative flex items-start gap-3 overflow-hidden rounded-card bg-surface p-4 pl-5 shadow-card"
-            >
-              <span aria-hidden="true" className="tone-solid absolute inset-y-0 left-0 w-1.5" />
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-headline font-semibold">{commitment.title}</h2>
-                <p className="mt-0.5 text-body text-label-secondary tabular-nums">
-                  {commitment.startTime}–{commitment.endTime}
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <Badge tone={commitment.color}>{CATEGORY_LABEL[commitment.category]}</Badge>
-                  <span className="text-footnote text-label-secondary">
-                    {formatWeekdays(commitment.daysOfWeek)}
-                  </span>
+        <>
+          {travelConflicts.length > 0 ? (
+            <div className="mb-4">
+              <Banner tone="warning" title="Deslocamento apertado">
+                <ul>
+                  {travelConflicts.map((conflict) => (
+                    <li key={`${conflict.nextCommitmentId}-${conflict.dayOfWeek}`}>
+                      {WEEKDAY_SHORT[conflict.dayOfWeek]}: {titleOf(conflict.nextCommitmentId)}{' '}
+                      começa antes do fim do deslocamento de {titleOf(conflict.commitmentId)} (
+                      {conflict.travelEnd}).
+                    </li>
+                  ))}
+                </ul>
+              </Banner>
+            </div>
+          ) : null}
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {data.map((commitment) => (
+              <li
+                key={commitment.id}
+                style={toneStyle(commitment.color)}
+                className="relative flex items-start gap-3 overflow-hidden rounded-card bg-surface p-4 pl-5 shadow-card"
+              >
+                <span aria-hidden="true" className="tone-solid absolute inset-y-0 left-0 w-1.5" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-headline font-semibold">{commitment.title}</h2>
+                  <p className="mt-0.5 text-body text-label-secondary tabular-nums">
+                    {commitment.startTime}–{commitment.endTime}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Badge tone={commitment.color}>{CATEGORY_LABEL[commitment.category]}</Badge>
+                    <span className="text-footnote text-label-secondary">
+                      {formatWeekdays(commitment.daysOfWeek)}
+                    </span>
+                    {commitment.requiresTravel ? <Badge tone="gray">Com deslocamento</Badge> : null}
+                  </div>
+                  {commitment.overlapsWith.length > 0 ? (
+                    <p className="mt-2 text-footnote text-warning">
+                      Sobrepõe{' '}
+                      {commitment.overlapsWith
+                        .map((item) => `${item.title} (${formatWeekdays(item.daysOfWeek)})`)
+                        .join(', ')}
+                    </p>
+                  ) : null}
                 </div>
-              </div>
-              <div className="-mt-1 -mr-2 flex">
-                <IconButton
-                  icon="edit"
-                  label={`Editar ${commitment.title}`}
-                  onClick={() => openForm(commitment.id)}
-                />
-                <IconButton
-                  icon="trash"
-                  label={`Excluir ${commitment.title}`}
-                  onClick={() => setDeleting(commitment)}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+                <div className="-mt-1 -mr-2 flex">
+                  <IconButton
+                    icon="edit"
+                    label={`Editar ${commitment.title}`}
+                    onClick={() => openForm(commitment.id)}
+                  />
+                  <IconButton
+                    icon="trash"
+                    label={`Excluir ${commitment.title}`}
+                    onClick={() => setDeleting(commitment)}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <CommitmentFormSheet

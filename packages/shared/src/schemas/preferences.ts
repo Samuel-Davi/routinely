@@ -10,6 +10,8 @@ export const preferencesSchema = z
     minBreakMinutes: gridMinutesSchema(0, 120),
     lunchStart: timeStringSchema,
     lunchEnd: timeStringSchema,
+    /** Minutes reserved after the last commitment that requires travel; 0 disables it. */
+    travelMinutes: gridMinutesSchema(0, 240).default(60),
     timezone: z.string().refine(isValidTimeZone, 'Fuso horário inválido'),
   })
   .refine((value) => value.dayEnd > value.dayStart, {
@@ -29,5 +31,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   minBreakMinutes: 15,
   lunchStart: '12:00',
   lunchEnd: '13:00',
+  travelMinutes: 60,
   timezone: DEFAULT_TIMEZONE,
 };

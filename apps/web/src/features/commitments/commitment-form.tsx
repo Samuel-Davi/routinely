@@ -4,13 +4,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   COMMITMENT_CATEGORIES,
   COMMITMENT_COLORS,
+  findCommitmentOverlaps,
   fixedCommitmentInputSchema,
   type FixedCommitment,
   type FixedCommitmentInput,
 } from '@routinely/shared';
 import { useEffect } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { Button, Input, Select, Sheet, toneStyle, useToast } from '@/components/ui';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import type { z } from 'zod';
+import { Banner, Button, Input, Select, Sheet, toneStyle, useToast } from '@/components/ui';
 import { errorMessage } from '@/lib/api-client';
 import { cn } from '@/lib/cn';
 import {
@@ -19,10 +21,11 @@ import {
   WEEKDAY_LONG,
   WEEKDAY_ORDER,
   WEEKDAY_SHORT,
+  formatWeekdays,
 } from '@/lib/labels';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { commitmentDraftSaved, selectCommitmentDraft } from '@/lib/store/ui-slice';
-import { useSaveCommitment } from './api';
+import { useCommitments, useSaveCommitment } from './api';
 
 const EMPTY: FixedCommitmentInput = {
   title: '',
@@ -31,6 +34,7 @@ const EMPTY: FixedCommitmentInput = {
   endTime: '09:00',
   category: 'WORK',
   color: 'blue',
+  requiresTravel: false,
 };
 
 interface CommitmentFormSheetProps {
@@ -39,6 +43,8 @@ interface CommitmentFormSheetProps {
   /** Present when editing. */
   commitment?: FixedCommitment;
 }
+
+type FormInput = z.input<typeof fixedCommitmentInputSchema>;
 
 export function CommitmentFormSheet({ open, onClose, commitment }: CommitmentFormSheetProps) {
   const dispatch = useAppDispatch();
@@ -54,10 +60,29 @@ export function CommitmentFormSheet({ open, onClose, commitment }: CommitmentFor
     reset,
     getValues,
     formState: { errors, isDirty },
-  } = useForm<FixedCommitmentInput>({
+  } = useForm<FormInput, unknown, FixedCommitmentInput>({
     resolver: zodResolver(fixedCommitmentInputSchema),
     defaultValues: EMPTY,
   });
+
+  // Live, non-blocking warning: which existing commitments share time with this one.
+  const others = useCommitments().data;
+  const [days, startTime, endTime] = useWatch({
+    control,
+    name: ['daysOfWeek', 'startTime', 'endTime'],
+  });
+  const overlapping =
+    open && others && startTime && endTime && startTime < endTime
+      ? findCommitmentOverlaps([
+          { id: '__draft__', daysOfWeek: days ?? [], startTime, endTime },
+          ...others.filter((item) => item.id !== commitment?.id),
+        ])
+          .filter((overlap) => overlap.a === '__draft__')
+          .map((overlap) => ({
+            title: others.find((item) => item.id === overlap.b)?.title ?? '',
+            daysOfWeek: overlap.daysOfWeek,
+          }))
+      : [];
 
   // Load the entity (or the saved draft of a new one) each time the sheet opens.
   useEffect(() => {
@@ -69,7 +94,7 @@ export function CommitmentFormSheet({ open, onClose, commitment }: CommitmentFor
 
   const close = () => {
     // Keep an unfinished new commitment so an accidental dismissal loses nothing.
-    if (!editing && isDirty) dispatch(commitmentDraftSaved(getValues()));
+    if (!editing && isDirty) dispatch(commitmentDraftSaved(getValues() as FixedCommitmentInput));
     onClose();
   };
 
@@ -172,6 +197,30 @@ export function CommitmentFormSheet({ open, onClose, commitment }: CommitmentFor
             {...register('endTime')}
           />
         </div>
+
+        {overlapping.length > 0 ? (
+          <Banner tone="warning" title="Sobrepõe outro compromisso">
+            {overlapping
+              .map((item) => `${item.title} (${formatWeekdays(item.daysOfWeek)})`)
+              .join(', ')}
+            . Você pode salvar assim mesmo: a rotina trata os dois horários como ocupados.
+          </Banner>
+        ) : null}
+
+        <label className="flex items-start gap-3 text-body">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-5 shrink-0 accent-(--accent)"
+            {...register('requiresTravel')}
+          />
+          <span>
+            <span className="font-medium">Exige deslocamento depois</span>
+            <span className="block text-footnote text-label-secondary">
+              Reserva o tempo de deslocamento (definido em Ajustes) após o último compromisso assim
+              do dia.
+            </span>
+          </span>
+        </label>
 
         <Select label="Categoria" error={errors.category?.message} {...register('category')}>
           {COMMITMENT_CATEGORIES.map((category) => (

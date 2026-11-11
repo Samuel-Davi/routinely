@@ -1,16 +1,19 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { makeCommitment } from '@/test/fixtures';
+import { makeCommitment, preferences } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
 import { API, server } from '@/test/server';
 import { CommitmentsScreen } from './commitments-screen';
 
+const prefsHandler = http.get(`${API}/preferences`, () => HttpResponse.json(preferences));
 const suggestion = http.get(`${API}/routines/replan-suggestion`, () =>
   HttpResponse.json({ needsReplan: false, reasons: [] }),
 );
 
 describe('CommitmentsScreen', () => {
+  beforeEach(() => server.use(prefsHandler));
+
   it('shows a loading state, then the commitments', async () => {
     server.use(
       http.get(`${API}/fixed-commitments`, () =>
@@ -108,6 +111,9 @@ describe('CommitmentsScreen', () => {
     await userEvent.type(within(dialog).getByLabelText('Fim'), '20:30');
     await userEvent.selectOptions(within(dialog).getByLabelText('Categoria'), 'STUDY');
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Roxo' }));
+    await userEvent.click(
+      within(dialog).getByRole('checkbox', { name: /Exige deslocamento depois/ }),
+    );
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() =>
@@ -118,6 +124,7 @@ describe('CommitmentsScreen', () => {
         endTime: '20:30',
         category: 'STUDY',
         color: 'purple',
+        requiresTravel: true,
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Aula de inglês' })).toBeInTheDocument();
@@ -134,6 +141,74 @@ describe('CommitmentsScreen', () => {
     await userEvent.type(within(dialog).getByLabelText('Fim'), '07:00');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(await within(dialog).findByText('O fim deve ser depois do início')).toBeInTheDocument();
+  });
+
+  it('warns about overlapping commitments in the form and in the list, without blocking', async () => {
+    const etica = makeCommitment({
+      title: 'Aula de Ética',
+      daysOfWeek: [5],
+      startTime: '16:00',
+      endTime: '18:00',
+    });
+    const piola = makeCommitment({
+      title: 'Piola',
+      daysOfWeek: [5],
+      startTime: '17:00',
+      endTime: '19:00',
+      overlapsWith: [{ id: etica.id, title: 'Aula de Ética', daysOfWeek: [5] }],
+    });
+    server.use(
+      http.get(`${API}/fixed-commitments`, () => HttpResponse.json([etica, piola])),
+      http.get(`${API}/preferences`, () => HttpResponse.json(preferences)),
+    );
+    renderWithProviders(<CommitmentsScreen />);
+    expect(await screen.findByText(/Sobrepõe\s+Aula de Ética \(Sex\)/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Editar Piola' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Editar compromisso' });
+    expect(await within(dialog).findByText('Sobrepõe outro compromisso')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Aula de Ética \(Sex\)/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeEnabled();
+
+    // moving it out of the way clears the warning
+    await userEvent.clear(within(dialog).getByLabelText('Início'));
+    await userEvent.type(within(dialog).getByLabelText('Início'), '18:00');
+    await waitFor(() =>
+      expect(within(dialog).queryByText('Sobrepõe outro compromisso')).not.toBeInTheDocument(),
+    );
+  });
+
+  it('warns when a commitment starts before the travel time is over', async () => {
+    server.use(
+      http.get(`${API}/preferences`, () =>
+        HttpResponse.json({ ...preferences, travelMinutes: 60 }),
+      ),
+      http.get(`${API}/fixed-commitments`, () =>
+        HttpResponse.json([
+          makeCommitment({
+            title: 'Aula presencial',
+            daysOfWeek: [2],
+            startTime: '16:00',
+            endTime: '18:00',
+            requiresTravel: true,
+          }),
+          makeCommitment({
+            title: 'Web Academy',
+            daysOfWeek: [2],
+            startTime: '18:15',
+            endTime: '21:15',
+          }),
+        ]),
+      ),
+    );
+    renderWithProviders(<CommitmentsScreen />);
+    expect(await screen.findByText('Deslocamento apertado')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Ter: Web Academy começa antes do fim do deslocamento de Aula presencial \(19:00\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Com deslocamento')).toBeInTheDocument();
   });
 
   it('asks for confirmation before deleting', async () => {

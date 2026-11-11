@@ -13,6 +13,7 @@ const input: FixedCommitmentInput = {
   endTime: '19:00',
   category: 'HEALTH',
   color: 'green',
+  requiresTravel: false,
 };
 const row: FixedCommitmentRow = {
   id: 'c1',
@@ -43,6 +44,23 @@ describe('FixedCommitmentsService', () => {
   it('lists commitments with sorted weekdays', async () => {
     const { service } = setup();
     expect((await service.list())[0]).toMatchObject({ id: 'c1', daysOfWeek: [1, 3, 5] });
+  });
+
+  it('reports which commitments share time with each other', async () => {
+    const pilates = {
+      ...row,
+      id: 'c2',
+      title: 'Pilates',
+      daysOfWeek: [1, 2],
+      startTime: '18:30',
+      endTime: '19:30',
+    };
+    const { service, repository } = setup();
+    repository.findAll.mockResolvedValue([row, pilates]);
+    const [first, second] = await service.list();
+    expect(first?.overlapsWith).toEqual([{ id: 'c2', title: 'Pilates', daysOfWeek: [1] }]);
+    expect(second?.overlapsWith).toEqual([{ id: 'c1', title: 'Academia', daysOfWeek: [1] }]);
+    expect((await service.get('c1')).overlapsWith).toHaveLength(1);
   });
 
   it('flags a schedule change on create, update and delete', async () => {

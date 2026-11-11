@@ -46,6 +46,8 @@ export function makeCommitment(overrides: Partial<FixedCommitment> = {}): FixedC
     endTime: '12:00',
     category: 'WORK',
     color: 'blue',
+    requiresTravel: false,
+    overlapsWith: [],
     createdAt: stamp,
     updatedAt: stamp,
     ...overrides,

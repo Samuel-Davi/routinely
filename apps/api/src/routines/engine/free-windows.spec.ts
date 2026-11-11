@@ -38,6 +38,22 @@ describe('computeFreeWindows', () => {
     ]);
   });
 
+  it('reserves travel time after the last commitment that requires it', () => {
+    const tuesday = { rangeStart: '2026-11-10', rangeEnd: '2026-11-10' };
+    const commitments = [
+      { id: 'a', daysOfWeek: [2], startTime: '14:00', endTime: '16:00', requiresTravel: true },
+      { id: 'b', daysOfWeek: [2], startTime: '16:00', endTime: '18:00', requiresTravel: true },
+    ];
+    const withTravel = context({ ...tuesday, commitments, prefs: { ...prefs, travelMinutes: 60 } });
+    expect(format(computeFreeWindows(withTravel))).toEqual([
+      '2026-11-10T07:00–12:00',
+      '2026-11-10T13:00–14:00',
+      '2026-11-10T19:00–22:00',
+    ]);
+    const disabled = context({ ...tuesday, commitments, prefs: { ...prefs, travelMinutes: 0 } });
+    expect(format(computeFreeWindows(disabled)).at(-1)).toBe('2026-11-10T18:00–22:00');
+  });
+
   it('only applies commitments on their weekdays', () => {
     const saturday = { rangeStart: '2026-11-14', rangeEnd: '2026-11-14' };
     expect(format(computeFreeWindows(context({ ...saturday, commitments: workWeek })))).toEqual([

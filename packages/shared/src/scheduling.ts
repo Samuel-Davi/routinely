@@ -24,6 +24,8 @@ export interface SchedulingPreferences {
   minBreakMinutes: number;
   lunchStart: string;
   lunchEnd: string;
+  /** Minutes blocked after the day's last commitment that requires travel (0 = off). */
+  travelMinutes?: number;
   timezone: string;
 }
 
@@ -32,6 +34,7 @@ export interface SchedulingCommitment {
   daysOfWeek: number[];
   startTime: string;
   endTime: string;
+  requiresTravel?: boolean;
 }
 
 export interface CommitmentOccurrence extends Interval {
@@ -110,6 +113,96 @@ export function expandCommitments(
   return occurrences.sort((a, b) => a.start - b.start);
 }
 
+/**
+ * Travel time of `date`: starts when the day's **last** commitment that requires travel
+ * ends and lasts `travelMinutes`, clipped to the daily window. `null` when there is none.
+ */
+export function travelInterval(
+  date: DateString,
+  commitments: readonly SchedulingCommitment[],
+  prefs: SchedulingPreferences,
+): Interval | null {
+  const minutes = prefs.travelMinutes ?? 0;
+  if (minutes <= 0) return null;
+  const dow = dayOfWeekOf(date);
+  const ends = commitments
+    .filter((commitment) => commitment.requiresTravel && commitment.daysOfWeek.includes(dow))
+    .map((commitment) => timeToMinutes(commitment.endTime));
+  if (ends.length === 0) return null;
+  const start = zonedToUtcMs(date, Math.max(...ends), prefs.timezone);
+  const end = Math.min(start + minutes * MINUTE_MS, dayWindow(date, prefs).end);
+  return end > start ? { start, end } : null;
+}
+
+export interface CommitmentOverlap {
+  /** Ids of the two commitments, in input order. */
+  a: string;
+  b: string;
+  /** Weekdays (0–6) on which they share time. */
+  daysOfWeek: number[];
+}
+
+/** Pairs of weekly commitments that share time on at least one weekday. */
+export function findCommitmentOverlaps(
+  commitments: readonly SchedulingCommitment[],
+): CommitmentOverlap[] {
+  const overlapsFound: CommitmentOverlap[] = [];
+  commitments.forEach((first, index) => {
+    for (const second of commitments.slice(index + 1)) {
+      const sameTime = first.startTime < second.endTime && second.startTime < first.endTime;
+      const days = first.daysOfWeek.filter((day) => second.daysOfWeek.includes(day));
+      if (sameTime && days.length > 0) {
+        overlapsFound.push({ a: first.id, b: second.id, daysOfWeek: [...days].sort() });
+      }
+    }
+  });
+  return overlapsFound;
+}
+
+export interface TravelConflict {
+  /** The commitment whose travel time is cut short. */
+  commitmentId: string;
+  /** The commitment that starts before the travel ends. */
+  nextCommitmentId: string;
+  dayOfWeek: number;
+  /** "HH:mm" when the travel would end. */
+  travelEnd: string;
+}
+
+/**
+ * Commitments that start before the travel time of the same day is over. Purely
+ * informational: the user decides what to do about it.
+ */
+export function findTravelConflicts(
+  commitments: readonly SchedulingCommitment[],
+  travelMinutes: number,
+): TravelConflict[] {
+  if (travelMinutes <= 0) return [];
+  const conflicts: TravelConflict[] = [];
+  for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
+    const today = commitments.filter((commitment) => commitment.daysOfWeek.includes(dayOfWeek));
+    const travelling = today
+      .filter((commitment) => commitment.requiresTravel)
+      .sort((a, b) => a.endTime.localeCompare(b.endTime));
+    const last = travelling[travelling.length - 1];
+    if (!last) continue;
+    const travelStart = timeToMinutes(last.endTime);
+    const travelEnd = Math.min(travelStart + travelMinutes, 24 * 60 - 1);
+    for (const next of today) {
+      const start = timeToMinutes(next.startTime);
+      if (next.id !== last.id && start >= travelStart && start < travelEnd) {
+        conflicts.push({
+          commitmentId: last.id,
+          nextCommitmentId: next.id,
+          dayOfWeek,
+          travelEnd: `${String(Math.floor(travelEnd / 60)).padStart(2, '0')}:${String(travelEnd % 60).padStart(2, '0')}`,
+        });
+      }
+    }
+  }
+  return conflicts;
+}
+
 export interface PlacementContext {
   prefs: SchedulingPreferences;
   commitments: readonly SchedulingCommitment[];
@@ -151,6 +244,8 @@ export function checkPlacement(block: Interval, context: PlacementContext): Plac
     if (occurrences.some((occurrence) => overlaps(block, occurrence))) {
       violations.add('OVERLAPS_COMMITMENT');
     }
+    const travel = travelInterval(startParts.date, context.commitments, prefs);
+    if (travel && overlaps(block, travel)) violations.add('OVERLAPS_TRAVEL');
   }
 
   if (context.otherBlocks.some((other) => overlaps(block, other))) violations.add('OVERLAPS_BLOCK');

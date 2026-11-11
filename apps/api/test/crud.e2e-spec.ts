@@ -39,7 +39,11 @@ describe('CRUD endpoints (e2e)', () => {
 
     it('creates, lists, updates and deletes a commitment', async () => {
       const created = await http().post('/fixed-commitments').send(commitment).expect(201);
-      expect(created.body).toMatchObject(commitment);
+      expect(created.body).toMatchObject({
+        ...commitment,
+        requiresTravel: false,
+        overlapsWith: [],
+      });
       const id: string = created.body.id;
 
       const list = await http().get('/fixed-commitments').expect(200);
@@ -53,6 +57,41 @@ describe('CRUD endpoints (e2e)', () => {
 
       await http().delete(`/fixed-commitments/${id}`).expect(204);
       await http().get(`/fixed-commitments/${id}`).expect(404);
+    });
+
+    it('warns, without blocking, when commitments overlap', async () => {
+      const first = await http().post('/fixed-commitments').send(commitment).expect(201);
+      expect(first.body.overlapsWith).toEqual([]);
+      const second = await http()
+        .post('/fixed-commitments')
+        .send({
+          ...commitment,
+          title: 'Piola',
+          daysOfWeek: [4, 5],
+          startTime: '20:00',
+          endTime: '21:00',
+        })
+        .expect(201);
+      expect(second.body.overlapsWith).toEqual([
+        { id: first.body.id, title: 'Aula de inglês', daysOfWeek: [4] },
+      ]);
+      const list = await http().get('/fixed-commitments').expect(200);
+      expect(
+        list.body.every((item: { overlapsWith: unknown[] }) => item.overlapsWith.length === 1),
+      ).toBe(true);
+    });
+
+    it('stores the travel flag', async () => {
+      const created = await http()
+        .post('/fixed-commitments')
+        .send({ ...commitment, requiresTravel: true })
+        .expect(201);
+      expect(created.body.requiresTravel).toBe(true);
+      const plain = await http()
+        .post('/fixed-commitments')
+        .send({ ...commitment, daysOfWeek: [1] })
+        .expect(201);
+      expect(plain.body.requiresTravel).toBe(false);
     });
 
     it('rejects invalid payloads with the shared error shape', async () => {

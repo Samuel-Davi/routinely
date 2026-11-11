@@ -42,6 +42,7 @@ const commitments = [
     endTime: '20:30',
     category: 'STUDY',
     color: 'purple',
+    requiresTravel: true,
   },
 ];
 

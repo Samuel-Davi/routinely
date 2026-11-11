@@ -67,6 +67,33 @@ describe('CalendarScreen', () => {
     expect(screen.getAllByRole('region')).toHaveLength(7);
   });
 
+  it('shows the travel time after the last in-person commitment of the day', async () => {
+    server.use(
+      http.get(`${API}/preferences`, () =>
+        HttpResponse.json({ ...preferences, travelMinutes: 60 }),
+      ),
+      http.get(`${API}/fixed-commitments`, () =>
+        HttpResponse.json([
+          makeCommitment({
+            daysOfWeek: [1],
+            startTime: '14:00',
+            endTime: '16:00',
+            requiresTravel: true,
+          }),
+        ]),
+      ),
+      http.get(`${API}/routines/active`, () => HttpResponse.json({ routine: null })),
+    );
+    renderWithProviders(<CalendarScreen />);
+    const monday = await screen.findByRole('region', { name: 'segunda-feira, 9 de novembro' });
+    expect(within(monday).getByTestId('travel-band')).toHaveTextContent('Deslocamento');
+    expect(
+      within(screen.getByRole('region', { name: 'terça-feira, 10 de novembro' })).queryByTestId(
+        'travel-band',
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it('navigates between weeks and back to today', async () => {
     mockApi();
     renderWithProviders(<CalendarScreen />);
