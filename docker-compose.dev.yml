@@ -1,0 +1,25 @@
+# Development override with hot reload:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Source folders are bind-mounted; node_modules stay inside the images.
+services:
+  api:
+    build:
+      target: dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./apps/api/src:/repo/apps/api/src
+      - ./apps/api/prisma:/repo/apps/api/prisma
+      - ./packages/shared/src:/repo/packages/shared/src
+
+  web:
+    build:
+      target: dev
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NEXT_PUBLIC_DEFAULT_TIMEZONE: ${NEXT_PUBLIC_DEFAULT_TIMEZONE:-America/Manaus}
+      WATCHPACK_POLLING: 'true'
+    volumes:
+      - ./apps/web/src:/repo/apps/web/src
+      - ./apps/web/public:/repo/apps/web/public

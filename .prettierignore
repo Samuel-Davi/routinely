@@ -5,3 +5,4 @@ coverage
 pnpm-lock.yaml
 .claude
 apps/api/prisma/migrations
+.playwright-mcp

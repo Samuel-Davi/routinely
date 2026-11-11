@@ -28,12 +28,19 @@ export interface HeuristicResult {
   unscheduled: EngineUnscheduled[];
 }
 
-/** Tries to place one task first-fit; returns its blocks or how many minutes did not fit. */
+/** Splitting first tries pieces of at least this size, to avoid 15 minute crumbs. */
+const PREFERRED_MIN_CHUNK_MS = 30 * MINUTE_MS;
+
+/**
+ * Tries to place one task first-fit; returns its blocks or how many minutes did not
+ * fit. A piece is never smaller than `minChunkMs`, except the last one of a task.
+ */
 function placeTask(
   task: EngineTask,
   windows: readonly Interval[],
   maxBlockMs: number,
   breakMs: number,
+  minChunkMs: number = GRID_MS,
 ): { blocks: EngineBlock[]; missingMinutes: number } {
   const blocks: EngineBlock[] = [];
   let remaining = task.minutes * MINUTE_MS;
@@ -45,6 +52,7 @@ function placeTask(
       const size = Math.min(remaining, maxBlockMs, end - cursor);
       // An unsplittable task needs one window that takes it whole.
       if (!task.splittable && size < remaining) break;
+      if (size < Math.min(minChunkMs, remaining)) break;
       blocks.push({
         taskId: task.id,
         start: cursor,
@@ -103,8 +111,15 @@ export function scheduleHeuristic(
       task.splittable && task.minutes <= prefs.maxFocusBlockMinutes
         ? placeTask({ ...task, splittable: false }, windows, maxBlockMs, breakMs)
         : null;
+    const comfortable =
+      whole?.missingMinutes === 0
+        ? whole
+        : placeTask(task, windows, maxBlockMs, breakMs, PREFERRED_MIN_CHUNK_MS);
+    // Only fall back to 15 minute pieces when that is what makes the task fit.
     const attempt =
-      whole?.missingMinutes === 0 ? whole : placeTask(task, windows, maxBlockMs, breakMs);
+      comfortable.missingMinutes === 0
+        ? comfortable
+        : placeTask(task, windows, maxBlockMs, breakMs);
     if (attempt.missingMinutes > 0) {
       unscheduled.push({
         taskId: task.id,

@@ -57,6 +57,32 @@ describe('scheduleHeuristic', () => {
     expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–08:00', 'a 2026-11-09T17:00–17:30']);
   });
 
+  it('avoids 15 minute crumbs when a later window fits a bigger piece', () => {
+    // Monday evening: 17:00–18:45 free, then a commitment, then 20:00–22:00.
+    const evening = context({
+      commitments: [
+        ...workWeek,
+        { id: 'c', daysOfWeek: [1], startTime: '18:45', endTime: '20:00' },
+        { id: 'm', daysOfWeek: [1], startTime: '07:00', endTime: '08:00' },
+      ],
+    });
+    const result = scheduleHeuristic([task('a', { minutes: 150 })], evening);
+    // 90 min, then the 15 min left before 18:45 is skipped in favour of 60 min at 20:00
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T17:00–18:30', 'a 2026-11-09T20:00–21:00']);
+  });
+
+  it('still uses 15 minute pieces when nothing else makes the task fit', () => {
+    const tight = context({
+      rangeEnd: '2026-11-09',
+      commitments: [{ id: 'c', daysOfWeek: [1], startTime: '07:15', endTime: '21:00' }],
+    });
+    const result = scheduleHeuristic(
+      [task('a', { minutes: 75, deadline: at('2026-11-09T22:00') })],
+      tight,
+    );
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–07:15', 'a 2026-11-09T21:00–22:00']);
+  });
+
   it('puts an unsplittable task in the first window that takes it whole', () => {
     const result = scheduleHeuristic([task('a', { minutes: 90, splittable: false })], ctx);
     expect(show(result.blocks)).toEqual(['a 2026-11-09T17:00–18:30']);

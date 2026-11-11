@@ -238,6 +238,9 @@ importers:
       pino-http:
         specifier: ^11.0.0
         version: 11.0.0
+      prisma:
+        specifier: 6.19.3
+        version: 6.19.3(typescript@6.0.3)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -281,9 +284,6 @@ importers:
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      prisma:
-        specifier: 6.19.3
-        version: 6.19.3(typescript@6.0.3)
       supertest:
         specifier: ^7.3.2
         version: 7.3.2(supports-color@8.1.1)

@@ -1,0 +1,20 @@
+# Keep the build context small and free of secrets
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+.git
+.github
+.husky
+.claude
+.agents
+.playwright-mcp
+graphify-out
+docs
+*.md
+.env
+.env.*
+!.env.example
+docker-compose*.yml
+**/Dockerfile
