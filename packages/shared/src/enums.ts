@@ -74,6 +74,7 @@ export const PLACEMENT_VIOLATIONS = [
   'OVERLAPS_BLOCK',
   'AFTER_DEADLINE',
   'EXCEEDS_MAX_BLOCK',
+  'IN_THE_PAST',
 ] as const;
 export const placementViolationSchema = z.enum(PLACEMENT_VIOLATIONS);
 export type PlacementViolation = z.infer<typeof placementViolationSchema>;

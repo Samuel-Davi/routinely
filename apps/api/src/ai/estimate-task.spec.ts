@@ -37,7 +37,9 @@ function setup() {
   return {
     provider,
     prisma,
-    estimator: new TaskEstimator(client, prisma as unknown as PrismaService),
+    estimator: new TaskEstimator(client, prisma as unknown as PrismaService, {
+      now: () => new Date('2026-11-10T12:00:00.000Z'),
+    }),
   };
 }
 
@@ -97,6 +99,7 @@ describe('TaskEstimator', () => {
     expect(call?.system).not.toContain('<!--');
     expect(call?.prompt).toContain('Título: "Estudar para a prova"');
     expect(call?.prompt).toContain('Prazo (horário local): 2026-11-13T18:00');
+    expect(call?.prompt).toContain('Agora (horário local): 2026-11-10T08:00');
     expect(prisma.estimateCache.upsert).toHaveBeenCalledTimes(1);
   });
 

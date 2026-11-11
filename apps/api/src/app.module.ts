@@ -7,6 +7,7 @@ import { FixedCommitmentsModule } from './fixed-commitments/fixed-commitments.mo
 import { HealthModule } from './health/health.module';
 import { PreferencesModule } from './preferences/preferences.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RoutinesModule } from './routines/routines.module';
 import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module';
     FixedCommitmentsModule,
     TasksModule,
     PreferencesModule,
+    RoutinesModule,
   ],
 })
 export class AppModule {}

@@ -69,6 +69,13 @@ export const routineSchema = routineSummarySchema.extend({
 });
 export type Routine = z.infer<typeof routineSchema>;
 
+/** `GET /routines/active`: wrapped so "no routine yet" is a regular JSON body. */
+export const activeRoutineSchema = z.object({ routine: routineSchema.nullable() });
+export type ActiveRoutine = z.infer<typeof activeRoutineSchema>;
+
+export const lockBlockSchema = z.object({ locked: z.boolean() });
+export type LockBlockInput = z.infer<typeof lockBlockSchema>;
+
 export const generateRoutineInputSchema = z.object({
   /** Any date inside the week to plan; defaults to the current week. */
   weekStart: dateStringSchema.optional(),

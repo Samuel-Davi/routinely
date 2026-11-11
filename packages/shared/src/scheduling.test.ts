@@ -165,6 +165,14 @@ describe('checkPlacement', () => {
     ]);
   });
 
+  it('rejects blocks starting before now when a clock is given', () => {
+    const candidate = block('2026-11-10T10:00', '2026-11-10T11:00');
+    expect(checkPlacement(candidate, { ...context, now: at('2026-11-10T10:30') })).toEqual([
+      'IN_THE_PAST',
+    ]);
+    expect(checkPlacement(candidate, { ...context, now: at('2026-11-10T10:00') })).toEqual([]);
+  });
+
   it('reports every violation at once', () => {
     const violations = checkPlacement(block('2026-11-10T08:00', '2026-11-10T12:30'), context);
     expect(violations).toEqual(

@@ -23,6 +23,10 @@ export class FakeLlmProvider implements LlmProvider {
     return this;
   }
 
+  clear(): void {
+    this.replies = [];
+  }
+
   isConfigured(): boolean {
     return this.configured;
   }
@@ -39,7 +43,9 @@ export class FakeLlmProvider implements LlmProvider {
     const next = this.replies.shift();
     const value =
       typeof next === 'function'
-        ? (next as (i: StructuredInput<unknown>) => unknown)(input as StructuredInput<unknown>)
+        ? await (next as (i: StructuredInput<unknown>) => unknown)(
+            input as StructuredInput<unknown>,
+          )
         : next;
     if (value instanceof LlmError) throw value;
     return parseStructured(JSON.stringify(value), input.schema);

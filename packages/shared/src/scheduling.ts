@@ -117,6 +117,8 @@ export interface PlacementContext {
   otherBlocks: readonly Interval[];
   /** Deadline of the block's task, epoch ms. */
   deadline?: number | null;
+  /** When set, blocks starting before this instant are rejected. */
+  now?: number | null;
 }
 
 /**
@@ -154,6 +156,7 @@ export function checkPlacement(block: Interval, context: PlacementContext): Plac
   if (context.otherBlocks.some((other) => overlaps(block, other))) violations.add('OVERLAPS_BLOCK');
   if (context.deadline != null && block.end > context.deadline) violations.add('AFTER_DEADLINE');
   if (durationMinutes(block) > prefs.maxFocusBlockMinutes) violations.add('EXCEEDS_MAX_BLOCK');
+  if (context.now != null && block.start < context.now) violations.add('IN_THE_PAST');
 
   return [...violations];
 }

@@ -13,7 +13,6 @@ import type { EngineBlock, EngineTask, PlanningContext } from './types';
 export type ValidationIssueCode =
   | PlacementViolation
   | 'UNKNOWN_TASK'
-  | 'IN_THE_PAST'
   | 'OUTSIDE_RANGE'
   | 'OVERLAPS_PROPOSED'
   | 'BREAK_TOO_SHORT'
@@ -46,6 +45,7 @@ const PLACEMENT_MESSAGES: Record<PlacementViolation, string> = {
   OVERLAPS_BLOCK: 'sobrepõe um bloco travado',
   AFTER_DEADLINE: 'termina depois do prazo da tarefa',
   EXCEEDS_MAX_BLOCK: 'excede a duração máxima de um bloco de foco',
+  IN_THE_PAST: 'começa no passado',
 };
 
 /**

@@ -10,6 +10,7 @@ import {
   type EstimationSource,
   type Priority,
 } from '@routinely/shared';
+import { Clock } from '../common/clock';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmClient } from './llm-client';
 import { isLlmError } from './llm-provider';
@@ -78,6 +79,7 @@ export class TaskEstimator {
   constructor(
     private readonly llm: LlmClient,
     private readonly prisma: PrismaService,
+    private readonly clock: Clock,
   ) {}
 
   async estimate(input: EstimateTaskInput): Promise<TaskEstimate> {
@@ -106,7 +108,7 @@ export class TaskEstimator {
             description: sanitizeForPrompt(input.description, 2000),
             priority: input.priority,
             deadline: toLocalDateTime(input.deadline, input.timezone),
-            now: toLocalDateTime(Date.now(), input.timezone),
+            now: toLocalDateTime(this.clock.now(), input.timezone),
           }),
           schema: estimateTaskOutputSchema,
         }),
