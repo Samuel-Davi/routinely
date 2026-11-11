@@ -102,6 +102,49 @@ describe('HistoryScreen', () => {
     expect(screen.queryByRole('button', { name: /Restaurar/ })).not.toBeInTheDocument();
   });
 
+  it('retries a failed version and reports an error when the server refuses', async () => {
+    const failedId = uuid(811);
+    let retried: string | undefined;
+    server.use(
+      http.get(`${API}/routines`, () =>
+        HttpResponse.json([
+          {
+            ...summary({ id: failedId, version: 4, active: false }),
+            status: 'FAILED',
+            source: null,
+          },
+        ]),
+      ),
+      http.post(`${API}/routines/${failedId}/retry`, () => {
+        retried = failedId;
+        return HttpResponse.json(
+          { ...summary({ id: uuid(812), version: 5, active: false }), status: 'PENDING' },
+          { status: 202 },
+        );
+      }),
+    );
+    const { store } = renderWithProviders(<HistoryScreen />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Tentar de novo a versão 4' }));
+    await waitFor(() => expect(retried).toBe(failedId));
+    // the new job is followed like any other generation
+    await waitFor(() => expect(store.getState().ui.pendingRoutineId).toBe(uuid(812)));
+
+    server.use(
+      http.post(`${API}/routines/${failedId}/retry`, () =>
+        HttpResponse.json(
+          {
+            statusCode: 409,
+            code: 'GENERATION_IN_PROGRESS',
+            message: 'Já existe uma rotina sendo gerada.',
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo a versão 4' }));
+    expect(await screen.findByText('Já existe uma rotina sendo gerada.')).toBeInTheDocument();
+  });
+
   it('has empty and error states', async () => {
     server.use(http.get(`${API}/routines`, () => HttpResponse.json([])));
     const { unmount } = renderWithProviders(<HistoryScreen />);

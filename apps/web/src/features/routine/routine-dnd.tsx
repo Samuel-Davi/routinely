@@ -43,6 +43,8 @@ interface Preview {
 
 interface RoutineDndApi {
   prefs: Preferences;
+  /** True while a routine is being generated: blocks cannot be moved, locked or completed. */
+  locked: boolean;
   /** Validates a candidate placement of `block` (pure; no state change). */
   check: (block: RoutineBlock, start: number, end: number) => PlacementViolation[];
   begin: (block: RoutineBlock, kind: DragKind) => void;
@@ -65,6 +67,8 @@ interface ProviderProps {
   prefs: Preferences;
   commitments: readonly FixedCommitment[];
   blocks: readonly RoutineBlock[];
+  /** A generation is running (the server answers 409 to block edits meanwhile). */
+  locked?: boolean;
   children: ReactNode;
 }
 
@@ -73,7 +77,13 @@ interface ProviderProps {
  * `checkPlacement` the API uses, so conflicts show up *while* dragging; a valid
  * drop is applied optimistically and rolled back if the server disagrees.
  */
-export function RoutineDndProvider({ prefs, commitments, blocks, children }: ProviderProps) {
+export function RoutineDndProvider({
+  prefs,
+  commitments,
+  blocks,
+  locked = false,
+  children,
+}: ProviderProps) {
   const dispatch = useAppDispatch();
   const toast = useToast();
   const move = useMoveBlock();
@@ -106,6 +116,7 @@ export function RoutineDndProvider({ prefs, commitments, blocks, children }: Pro
   const api = useMemo<RoutineDndApi>(
     () => ({
       prefs,
+      locked,
       check,
       begin: (block, kind) => {
         latest.current = null;
@@ -136,7 +147,7 @@ export function RoutineDndProvider({ prefs, commitments, blocks, children }: Pro
         dispatch(dragEnded());
       },
     }),
-    [prefs, check, dispatch, toast, move],
+    [prefs, locked, check, dispatch, toast, move],
   );
 
   const onDragMove = ({ active, delta, over }: DragMoveEvent) => {

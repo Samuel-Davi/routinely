@@ -244,6 +244,20 @@ export function useLockBlock() {
   });
 }
 
+/** Retries a failed version (same range, new version) and follows the new job. */
+export function useRetryRoutine() {
+  const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest(`/routines/${id}/retry`, { method: 'POST', schema: routineSummarySchema }),
+    onSuccess: (routine) => {
+      dispatch(routineJobStarted(routine.id));
+      return invalidateRoutineData(queryClient);
+    },
+  });
+}
+
 export function useRestoreRoutine() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -159,6 +159,8 @@ model Routine {
   diffSummary Json?
   unscheduled Json           @default("[]")
   notice      String?
+  // How many times an interrupted generation was resumed after a restart (capped, see service)
+  resumeCount Int            @default(0)
   createdAt   DateTime       @default(now()) @db.Timestamptz(3)
 
   user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)

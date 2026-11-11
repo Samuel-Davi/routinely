@@ -373,6 +373,102 @@ describe('Routines (e2e, mocked LLM)', () => {
     await routines.idle();
   });
 
+  describe('interrupted and failed generations', () => {
+    it('resumes a generation left PENDING by a restart instead of failing it', async () => {
+      await createTask('Relatório', 60, '2026-11-11T22:00');
+      const orphan = await prisma.routine.create({
+        data: {
+          userId: (await prisma.user.findFirstOrThrow()).id,
+          version: 1,
+          status: 'PENDING',
+          rangeStart: '2026-11-09',
+          rangeEnd: '2026-11-15',
+        },
+      });
+
+      await routines.onApplicationBootstrap();
+      await routines.idle();
+
+      const resumed = await http().get(`/routines/${orphan.id}`).expect(200);
+      expect(resumed.body).toMatchObject({ status: 'READY', active: true });
+      expect(resumed.body.blocks).toHaveLength(1);
+      expect(
+        (await prisma.routine.findUniqueOrThrow({ where: { id: orphan.id } })).resumeCount,
+      ).toBe(1);
+    });
+
+    it('gives up on a job that was already resumed too many times', async () => {
+      const orphan = await prisma.routine.create({
+        data: {
+          userId: (await prisma.user.findFirstOrThrow()).id,
+          version: 1,
+          status: 'PENDING',
+          resumeCount: 2,
+          rangeStart: '2026-11-09',
+          rangeEnd: '2026-11-15',
+        },
+      });
+      await routines.onApplicationBootstrap();
+      await routines.idle();
+      const after = await http().get(`/routines/${orphan.id}`).expect(200);
+      expect(after.body.status).toBe('FAILED');
+      expect(after.body.notice).toContain('interrompida');
+    });
+
+    it('retries a failed version with the same range, as a new version', async () => {
+      const failed = await prisma.routine.create({
+        data: {
+          userId: (await prisma.user.findFirstOrThrow()).id,
+          version: 1,
+          status: 'FAILED',
+          trigger: 'GENERATE',
+          rangeStart: '2026-11-09',
+          rangeEnd: '2026-11-15',
+          notice: 'Não foi possível gerar a rotina. Tente novamente.',
+        },
+      });
+      await createTask('Relatório', 60, '2026-11-11T22:00');
+      const started = await http().post(`/routines/${failed.id}/retry`).expect(202);
+      expect(started.body).toMatchObject({ version: 2, status: 'PENDING' });
+      await routines.idle();
+      const done = await http().get(`/routines/${started.body.id}`).expect(200);
+      expect(done.body).toMatchObject({ status: 'READY', rangeStart: '2026-11-09' });
+
+      // only failed versions can be retried; unknown ids are 404
+      await http().post(`/routines/${started.body.id}/retry`).expect(400);
+      await http().post('/routines/00000000-0000-4000-8000-000000000000/retry').expect(404);
+    });
+
+    it('locks block edits with 409 while a generation is running, then releases them', async () => {
+      await createTask('Relatório', 60, '2026-11-11T22:00');
+      const first = await generate();
+      const block = first.blocks[0]!;
+
+      llm.configured = true;
+      let release: (value: unknown) => void = () => undefined;
+      llm.reply(() => new Promise((resolve) => (release = resolve)));
+      await http().post('/routines/replan').send({}).expect(202);
+
+      for (const [path, body] of [
+        [`/routines/blocks/${block.id}`, { start: block.start, end: block.end }],
+        [`/routines/blocks/${block.id}/lock`, { locked: true }],
+        [`/routines/blocks/${block.id}/complete`, { completed: true }],
+      ] as const) {
+        const response = await http().patch(path).send(body).expect(409);
+        expect(response.body.code).toBe('GENERATION_IN_PROGRESS');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      release({ allocations: [] });
+      await routines.idle();
+      const fresh = (await http().get('/routines/active').expect(200)).body.routine as Routine;
+      await http()
+        .patch(`/routines/blocks/${fresh.blocks[0]!.id}/lock`)
+        .send({ locked: true })
+        .expect(200);
+    });
+  });
+
   describe('with a generated routine', () => {
     let taskA: { id: string };
     let routine: Routine;

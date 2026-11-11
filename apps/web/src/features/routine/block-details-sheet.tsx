@@ -57,6 +57,7 @@ function BlockDetails({ block, onClose }: { block: RoutineBlock; onClose: () => 
   const lock = useLockBlock();
   const move = useMoveBlock();
   const done = isBlockDone(block);
+  const locked = dnd.locked;
   const { data: commitments } = useCommitments();
   const commitmentTitle = commitments?.find((item) => item.id === block.task.commitmentId)?.title;
 
@@ -115,12 +116,21 @@ function BlockDetails({ block, onClose }: { block: RoutineBlock; onClose: () => 
         ) : null}
       </div>
 
+      {locked ? (
+        <p
+          role="status"
+          className="rounded-control bg-fill px-3 py-2 text-footnote text-label-secondary"
+        >
+          A rotina está sendo gerada. Você poderá editar este bloco quando terminar.
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <Button
           variant={done ? 'secondary' : 'primary'}
           icon="check"
           loading={complete.isPending}
-          disabled={block.task.status === 'DONE' && block.completedAt === null}
+          disabled={locked || (block.task.status === 'DONE' && block.completedAt === null)}
           onClick={() =>
             complete.mutate(
               { blockId: block.id, completed: block.completedAt === null },
@@ -134,6 +144,7 @@ function BlockDetails({ block, onClose }: { block: RoutineBlock; onClose: () => 
           <Button
             icon={block.locked ? 'unlock' : 'lock'}
             loading={lock.isPending}
+            disabled={locked}
             onClick={() => lock.mutate({ blockId: block.id, locked: !block.locked })}
           >
             {block.locked ? 'Destravar' : 'Travar'}
@@ -190,7 +201,7 @@ function BlockDetails({ block, onClose }: { block: RoutineBlock; onClose: () => 
             type="submit"
             className="self-end"
             loading={move.isPending}
-            disabled={!wellFormed || !changed || violations.length > 0}
+            disabled={locked || !wellFormed || !changed || violations.length > 0}
           >
             Salvar horário
           </Button>

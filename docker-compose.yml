@@ -22,6 +22,22 @@ services:
     networks:
       - internal
 
+  # One-shot: applies migrations and the seed, then exits. The API starts only after it succeeds.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    restart: 'no'
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-routinely}:${POSTGRES_PASSWORD:-routinely}@db:5432/${POSTGRES_DB:-routinely}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-routinely}:${POSTGRES_PASSWORD:-routinely}@db:5432/${POSTGRES_DB:-routinely}?schema=public
+    networks:
+      - internal
+
   api:
     build:
       context: .
@@ -29,8 +45,8 @@ services:
       target: prod
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 3001

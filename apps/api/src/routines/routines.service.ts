@@ -47,6 +47,9 @@ import { toBlockDto, toRoutineDto, toRoutineSummaryDto } from './routine.mapper'
 import { buildPlanningInput, buildProposeFn } from './ai-request';
 import { RoutinesRepository, type NewBlock, type RoutineWithBlocks } from './routines.repository';
 
+/** An interrupted generation is resumed at most this many times. */
+export const MAX_RESUMES = 2;
+
 @Injectable()
 export class RoutinesService implements OnApplicationBootstrap {
   private readonly logger = new Logger(RoutinesService.name);
@@ -64,9 +67,29 @@ export class RoutinesService implements OnApplicationBootstrap {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Generations interrupted by a restart are resumed (re-run from the start; the plan is
+   * deterministic given the data). A job that keeps being interrupted is given up after
+   * `MAX_RESUMES`, so a generation that crashes the process cannot cause a restart loop.
+   */
   async onApplicationBootstrap(): Promise<void> {
-    const failed = await this.repository.failOrphanedJobs();
-    if (failed > 0) this.logger.warn(`Marked ${failed} interrupted routine job(s) as FAILED`);
+    for (const job of await this.repository.findInterruptedJobs()) {
+      if (job.resumeCount >= MAX_RESUMES) {
+        await this.repository.markFailed(job.id, 'A geração foi interrompida. Tente novamente.');
+        this.logger.warn(`Routine job ${job.id} gave up after ${job.resumeCount} resume(s)`);
+        continue;
+      }
+      await this.repository.countResume(job.id);
+      this.logger.warn(`Resuming interrupted routine job ${job.id}`);
+      this.track(
+        this.runJob(job.userId, job.id, { rangeStart: job.rangeStart, rangeEnd: job.rangeEnd }),
+      );
+    }
+  }
+
+  private track(promise: Promise<void>): void {
+    const job = promise.finally(() => this.jobs.delete(job));
+    this.jobs.add(job);
   }
 
   /** Resolves when every running generation job has finished (used by tests). */
@@ -167,11 +190,24 @@ export class RoutinesService implements OnApplicationBootstrap {
       throw AppError.conflict('GENERATION_IN_PROGRESS', 'Já existe uma rotina sendo gerada.');
     }
     const routine = await this.repository.createPending(userId, { trigger, ...range });
-    const job = this.runJob(userId, routine.id, range, instruction).finally(() =>
-      this.jobs.delete(job),
-    );
-    this.jobs.add(job);
+    this.track(this.runJob(userId, routine.id, range, instruction));
     return toRoutineSummaryDto(routine);
+  }
+
+  /** Starts a new generation with the same range and trigger as a version that failed. */
+  async retry(id: string): Promise<RoutineSummary> {
+    const failed = await this.repository.findById(this.currentUser.id, id);
+    if (!failed) throw AppError.notFound('Rotina');
+    if (failed.status !== 'FAILED') {
+      throw new AppError(
+        'ROUTINE_NOT_FAILED',
+        'Só é possível tentar de novo uma geração que falhou.',
+      );
+    }
+    return this.startJob(failed.trigger, {
+      rangeStart: failed.rangeStart,
+      rangeEnd: failed.rangeEnd,
+    });
   }
 
   private async runJob(
@@ -444,6 +480,13 @@ export class RoutinesService implements OnApplicationBootstrap {
   private async findActiveBlock(blockId: string) {
     const block = await this.repository.findBlock(this.currentUser.id, blockId);
     if (!block) throw AppError.notFound('Bloco');
+    // The running generation works on a snapshot: edits made now would be lost or collide.
+    if (await this.repository.findPending(this.currentUser.id)) {
+      throw AppError.conflict(
+        'GENERATION_IN_PROGRESS',
+        'A rotina está sendo gerada. Aguarde para editar os blocos.',
+      );
+    }
     if (!block.routine.active) {
       throw AppError.conflict(
         'ROUTINE_NOT_ACTIVE',

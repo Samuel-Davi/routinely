@@ -26,7 +26,7 @@ docker compose up --build
 | API     | http://localhost:3001      |
 | Swagger | http://localhost:3001/docs |
 
-Na primeira subida a API aplica as migrations e carrega o seed (usuário único, preferências e exemplos de compromissos e tarefas).
+Na subida, o serviço `migrate` (um job que roda e sai) aplica as migrations e carrega o seed (usuário único, preferências e exemplos de compromissos e tarefas); a API só inicia depois que ele termina com sucesso.
 
 A chave do Gemini é gratuita (sem billing): https://aistudio.google.com/apikey.
 

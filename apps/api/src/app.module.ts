@@ -19,6 +19,8 @@ import { UsersModule } from './users/users.module';
       useFactory: (config: AppConfig) => ({
         pinoHttp: {
           level: config.LOG_LEVEL,
+          // Service lines (including background jobs) must not carry the whole request object.
+          quietReqLogger: true,
           // Structured JSON in production; readable output in development.
           transport:
             config.NODE_ENV === 'development'

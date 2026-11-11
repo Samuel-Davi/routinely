@@ -281,6 +281,45 @@ describe('WeekScreen', () => {
     expect(body).not.toHaveProperty('instruction');
   });
 
+  it('disables editing blocks while a routine is being generated', async () => {
+    const block = makeBlock();
+    const id = uuid(970);
+    mockApi({ routine: makeRoutine({ blocks: [block] }) });
+    const pending = { ...makeRoutine({ id, blocks: [] }), status: 'PENDING', active: false };
+    server.use(
+      http.post(`${API}/routines/replan`, () =>
+        HttpResponse.json({ ...pending, blocks: undefined }, { status: 202 }),
+      ),
+      http.get(`${API}/routines/${id}`, () => HttpResponse.json(pending)),
+    );
+    renderWithProviders(<WeekScreen />);
+    const blockButton = await screen.findByRole('button', { name: BLOCK_NAME });
+    expect(blockButton).toHaveAttribute('aria-roledescription', 'bloco arrastável');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Replanejar' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Replanejar' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Replanejar' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: BLOCK_NAME })).not.toHaveAttribute(
+        'aria-roledescription',
+      ),
+    );
+    expect(screen.getByRole('button', { name: BLOCK_NAME })).toHaveAttribute(
+      'title',
+      'A rotina está sendo gerada. Aguarde para editar os blocos.',
+    );
+    expect(screen.queryByTestId('resize-handle')).not.toBeInTheDocument();
+
+    // The details open, but every action is disabled and explained.
+    await userEvent.click(screen.getByRole('button', { name: BLOCK_NAME }));
+    const details = await screen.findByRole('dialog');
+    expect(within(details).getByText(/A rotina está sendo gerada/)).toBeInTheDocument();
+    expect(within(details).getByRole('button', { name: 'Concluir bloco' })).toBeDisabled();
+    expect(within(details).getByRole('button', { name: 'Travar' })).toBeDisabled();
+    expect(within(details).getByRole('button', { name: 'Salvar horário' })).toBeDisabled();
+  });
+
   it('opens block details, completes the block and locks it', async () => {
     const block = makeBlock();
     const world = mockApi({ routine: makeRoutine({ blocks: [block] }) });

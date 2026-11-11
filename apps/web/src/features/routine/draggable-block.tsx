@@ -36,7 +36,7 @@ export function DraggableBlock({
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: block.id,
     data: { block },
-    disabled: done,
+    disabled: done || dnd.locked,
   });
 
   // A drag ends with a click event on the same element; do not treat it as a tap.
@@ -62,7 +62,7 @@ export function DraggableBlock({
   const openDetails = () => dispatch(panelOpened({ type: 'block-details', blockId: block.id }));
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || dnd.locked) return;
     event.stopPropagation();
     event.preventDefault();
     const handle = event.currentTarget;
@@ -100,7 +100,8 @@ export function DraggableBlock({
       {...attributes}
       role="button"
       tabIndex={0}
-      aria-roledescription={done ? undefined : 'bloco arrastável'}
+      aria-roledescription={done || dnd.locked ? undefined : 'bloco arrastável'}
+      title={dnd.locked ? 'A rotina está sendo gerada. Aguarde para editar os blocos.' : undefined}
       aria-label={blockAccessibleName(block, timezone)}
       data-no-swipe
       onClick={() => {
@@ -123,7 +124,7 @@ export function DraggableBlock({
       }}
       className={cn(
         'group relative w-full touch-manipulation select-none',
-        done ? 'cursor-pointer' : isDragging ? 'cursor-grabbing' : 'cursor-grab',
+        done || dnd.locked ? 'cursor-pointer' : isDragging ? 'cursor-grabbing' : 'cursor-grab',
         (isDragging || resizing) && 'z-30',
       )}
     >
@@ -135,7 +136,7 @@ export function DraggableBlock({
         dragging={isDragging || resizing}
         conflict={conflict}
       />
-      {done ? null : (
+      {done || dnd.locked ? null : (
         <div
           data-testid="resize-handle"
           aria-hidden="true"

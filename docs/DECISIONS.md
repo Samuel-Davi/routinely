@@ -131,13 +131,19 @@ Compromissos têm `requiresTravel` (padrão falso) e Ajustes tem `travelMinutes`
 - Amostra pequena (n = 8 por linha): serve para descartar `times`, não para ranquear `order` × `order-day` com confiança. A "% válido na 1ª" é limitada por sobrecarga: nos cenários real e lotado sempre falta tempo para alguma tarefa, então nenhuma estratégia chega a 100%; vale a comparação relativa, não o valor absoluto.
 - Rodar de novo quando a cota renovar: `pnpm eval:ai -- --models gemini-3.6-flash,gemini-3.8-flash --reps 1 --scenarios real,crowded` (≈ 6 execuções por modelo e estratégia, perto do limite de 20/dia: use uma estratégia por vez com `--strategies`).
 
+## ADR-022 — Gerações retomáveis, edição travada durante a geração e imagem da API enxuta
+
+- **Retomar em vez de falhar:** ao subir, toda rotina `PENDING` deixada por uma instância anterior é **re-executada** (o plano é determinístico dado os dados). `Routine.resumeCount` limita a 2 retomadas: um job que derruba o processo toda vez é dado como `FAILED` em vez de causar loop de restart. A instrução rápida não é gravada (ADR-020), então uma geração retomada roda sem ela. Versões `FAILED` ganham `POST /routines/:id/retry` (mesmo período e gatilho, nova versão) e o botão "Tentar de novo" no histórico.
+- **Travar em vez de reconciliar:** enquanto há uma geração rodando, mover, travar e concluir bloco respondem `409 GENERATION_IN_PROGRESS`; a UI desabilita arrasto e redimensionamento e explica no painel do bloco. É mais simples e previsível do que mesclar edições com um job que trabalha sobre um snapshot.
+- **Imagem da API:** 753 MB → 447 MB (medido com `docker images`). A CLI do Prisma passou a `devDependencies`; as migrations e o seed rodam num stage/serviço `migrate` (one-shot, `depends_on: service_completed_successfully`) e o runtime só leva `@prisma/client` + o query engine de biblioteca, sem a CLI, seus engines e o toolchain (`effect`, `typescript`…) e sem os bundles WASM de edge. A meta inicial de < 350 MB **não** foi atingida: a base `node:24-alpine` sozinha tem ~230 MB (o binário do Node tem 126 MB). Para ir além seria preciso empacotar o código (esbuild) ou trocar a base. Em PaaS, o `migrate` vira o _release command_.
+- **Logs:** `quietReqLogger` tira o objeto `req` das linhas de serviço e dos jobs em segundo plano.
+
 # Pendências e riscos conhecidos
 
-- **Modelo de retry do Gemini:** `GEMINI_RETRY_MODEL=gemini-3.6-flash` foi mantido como especificado, mas a referência oficial consultada lista `gemini-3.8-flash` e `gemini-3.5-flash-lite` como modelos atuais e não menciona `gemini-3.6-flash`. Se o nome não existir, o retry falha e o app cai no heurístico (comportamento seguro). Confirme o nome e ajuste a variável.
-- **Sem chamada real ao Gemini nos testes:** a integração foi testada com o SDK mockado; falta um smoke manual com uma chave real (formato do `responseJsonSchema`, limites do free tier).
-- **Jobs in-process (ADR-003):** um restart da API durante uma geração marca a rotina como `FAILED` (o usuário gera de novo). Com mais de uma instância da API, o rate limit e a fila de estimativas deixam de ser globais — use uma fila persistente.
-- **Edição durante a geração:** blocos movidos manualmente enquanto um job está rodando podem não entrar na nova versão (o job usa um snapshot do início).
-- **Imagem da API (~750 MB):** inclui a CLI do Prisma e seus engines para rodar `migrate deploy` no start. Dá para reduzir separando as migrations em um job próprio.
+- **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).
+- **Sem chamada real ao Gemini nos testes:** testes e CI usam o `FakeLlmProvider`; a integração real foi exercitada pelo `pnpm eval:ai` (fora do CI).
+- **Jobs in-process (ADR-003):** um restart durante a geração retoma o job (ADR-022). Com mais de uma instância da API, o rate limit e a fila de estimativas deixam de ser globais, e duas instâncias poderiam retomar o mesmo job — use uma fila persistente.
+- **Imagem da API (447 MB):** ver ADR-022; a base do Node domina o tamanho.
 - **CI:** o workflow foi validado localmente (mesmos comandos e build das imagens), mas ainda não rodou no GitHub — o repositório não tem remoto configurado.
 - **Provedores Anthropic/Ollama:** stubs documentados, não implementados.
 - **Sem autenticação:** usuário único de seed; não exponha a API publicamente antes de adicionar login (ver `docs/SUPABASE.md`).

@@ -41,7 +41,7 @@ datasource db {
    pnpm --filter @routinely/api prisma:seed
    ```
 
-   A imagem Docker da API já faz isso sozinha a cada start (`docker-entrypoint.sh`).
+   No `docker compose`, o serviço `migrate` (stage `migrate` do Dockerfile) faz isso antes de a API subir; numa plataforma, use-o como _release command_.
 
 5. Suba a API apontando para o Supabase. Com Docker Compose, o serviço `db` deixa de ser necessário: sobrescreva `DATABASE_URL`/`DIRECT_URL` do serviço `api` (por exemplo, em um `docker-compose.override.yml`) e remova o `depends_on: db`.
 

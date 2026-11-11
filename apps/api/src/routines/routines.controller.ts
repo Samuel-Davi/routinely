@@ -125,6 +125,16 @@ export class RoutinesController {
     return this.service.get(id);
   }
 
+  @Post(':id/retry')
+  @HttpCode(202)
+  @UseGuards(AiThrottlerGuard)
+  @ApiOperation({ summary: 'Tenta de novo uma geração que falhou (mesmo período, nova versão)' })
+  @ApiIdParam()
+  @ApiZodResponse(routineSummarySchema, 202)
+  retry(@Param('id', IdPipe) id: string): Promise<RoutineSummary> {
+    return this.service.retry(id);
+  }
+
   @Post(':id/restore')
   @ApiOperation({ summary: 'Restaura uma versão antiga como uma nova versão ativa' })
   @ApiIdParam()

@@ -19,7 +19,7 @@ import {
   formatDate,
   formatDateTime,
 } from '@/lib/labels';
-import { useRestoreRoutine, useRoutineHistory } from './api';
+import { useRestoreRoutine, useRetryRoutine, useRoutineHistory } from './api';
 
 /** "+3 novos · 2 movidos · 1 removido", or a neutral message when nothing changed. */
 export function describeDiff(diff: RoutineSummary['diffSummary']): string {
@@ -37,6 +37,7 @@ export function HistoryScreen() {
   const timezone = useTimezone();
   const { data, isPending, isError, error, refetch } = useRoutineHistory();
   const restore = useRestoreRoutine();
+  const retry = useRetryRoutine();
   const toast = useToast();
 
   const onRestore = (routine: RoutineSummary) =>
@@ -45,6 +46,13 @@ export function HistoryScreen() {
         toast.success(restored.notice ?? `Versão ${routine.version} restaurada`),
       onError: (mutationError) =>
         toast.error(errorMessage(mutationError, 'Não foi possível restaurar esta versão.')),
+    });
+
+  const onRetry = (routine: RoutineSummary) =>
+    retry.mutate(routine.id, {
+      onSuccess: () => toast.info('Gerando de novo…'),
+      onError: (mutationError) =>
+        toast.error(errorMessage(mutationError, 'Não foi possível tentar de novo.')),
     });
 
   return (
@@ -109,6 +117,17 @@ export function HistoryScreen() {
                   <p className="mt-0.5 text-footnote text-danger">{routine.notice}</p>
                 ) : null}
               </div>
+              {routine.status === 'FAILED' ? (
+                <Button
+                  icon="refresh"
+                  aria-label={`Tentar de novo a versão ${routine.version}`}
+                  loading={retry.isPending && retry.variables === routine.id}
+                  disabled={retry.isPending}
+                  onClick={() => onRetry(routine)}
+                >
+                  Tentar de novo
+                </Button>
+              ) : null}
               {routine.status === 'READY' && !routine.active ? (
                 <Button
                   icon="restore"

@@ -81,6 +81,7 @@ export function WeekScreen() {
             prefs={preferences.data}
             commitments={commitments.data}
             blocks={blocks}
+            locked={pending}
           >
             {grid}
             <BlockDetailsSheet blocks={blocks} />

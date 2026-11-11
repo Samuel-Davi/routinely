@@ -127,13 +127,20 @@ export class RoutinesRepository {
     });
   }
 
-  /** Jobs interrupted by a restart can never finish (ADR-003). */
-  async failOrphanedJobs(): Promise<number> {
-    const result = await this.prisma.routine.updateMany({
+  /** Generations left `PENDING` by a previous process (it stopped before finishing them). */
+  findInterruptedJobs() {
+    return this.prisma.routine.findMany({
       where: { status: 'PENDING' },
-      data: { status: 'FAILED', notice: 'A geração foi interrompida. Tente novamente.' },
+      select: { id: true, userId: true, rangeStart: true, rangeEnd: true, resumeCount: true },
+      orderBy: { createdAt: 'asc' },
     });
-    return result.count;
+  }
+
+  async countResume(routineId: string): Promise<void> {
+    await this.prisma.routine.update({
+      where: { id: routineId },
+      data: { resumeCount: { increment: 1 } },
+    });
   }
 
   findBlock(userId: string, blockId: string): Promise<BlockWithRoutine | null> {
