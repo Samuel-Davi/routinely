@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Pooled connection (PgBouncer / Supabase pooler) used at runtime.
+  url       = env("DATABASE_URL")
+  // Direct connection used by migrations. Locally it is the same URL.
+  directUrl = env("DIRECT_URL")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  SCHEDULED
+  DONE
+}
+
+enum EstimationStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+enum EstimationSource {
+  AI
+  MANUAL
+  HEURISTIC
+}
+
+enum RoutineStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+enum RoutineSource {
+  AI
+  AI_REPAIRED
+  HEURISTIC
+}
+
+enum RoutineTrigger {
+  GENERATE
+  REPLAN
+  RESTORE
+}
+
+enum CommitmentCategory {
+  WORK
+  STUDY
+  HEALTH
+  PERSONAL
+  OTHER
+}
+
+model User {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  // Bumped whenever fixed commitments or preferences change (replan suggestion).
+  scheduleChangedAt DateTime @default(now()) @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  preferences      Preferences?
+  fixedCommitments FixedCommitment[]
+  tasks            Task[]
+  routines         Routine[]
+  routineBlocks    RoutineBlock[]
+  estimateCache    EstimateCache[]
+}
+
+model FixedCommitment {
+  id         String             @id @default(uuid()) @db.Uuid
+  userId     String             @db.Uuid
+  title      String
+  // 0 = Sunday … 6 = Saturday
+  daysOfWeek Int[]
+  // "HH:mm" wall-clock time in the user's timezone
+  startTime  String
+  endTime    String
+  category   CommitmentCategory @default(OTHER)
+  color      String             @default("blue")
+  createdAt  DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime           @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Task {
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String            @db.Uuid
+  title            String
+  description      String            @default("")
+  priority         Priority          @default(MEDIUM)
+  deadline         DateTime          @db.Timestamptz(3)
+  status           TaskStatus        @default(TODO)
+  // AI-generated (or manually overridden) fields
+  complexity       Int?
+  estimatedMinutes Int?
+  splittable       Boolean?
+  aiRationale      String?
+  estimationStatus EstimationStatus  @default(PENDING)
+  estimationSource EstimationSource?
+  // Bumped when anything that affects planning changes (replan suggestion).
+  planChangedAt    DateTime          @default(now()) @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blocks RoutineBlock[]
+
+  @@index([userId, status])
+  @@index([userId, deadline])
+}
+
+model Preferences {
+  userId               String   @id @db.Uuid
+  dayStart             String   @default("07:00")
+  dayEnd               String   @default("22:00")
+  maxFocusBlockMinutes Int      @default(90)
+  minBreakMinutes      Int      @default(15)
+  lunchStart           String   @default("12:00")
+  lunchEnd             String   @default("13:00")
+  timezone             String   @default("America/Manaus")
+  updatedAt            DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Routine {
+  id          String         @id @default(uuid()) @db.Uuid
+  userId      String         @db.Uuid
+  version     Int
+  status      RoutineStatus  @default(PENDING)
+  source      RoutineSource?
+  trigger     RoutineTrigger @default(GENERATE)
+  active      Boolean        @default(false)
+  // Inclusive calendar dates (YYYY-MM-DD) in the user's timezone
+  rangeStart  String
+  rangeEnd    String
+  diffSummary Json?
+  unscheduled Json           @default("[]")
+  notice      String?
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blocks RoutineBlock[]
+
+  @@unique([userId, version])
+  @@index([userId, active])
+}
+
+model RoutineBlock {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  routineId   String    @db.Uuid
+  taskId      String    @db.Uuid
+  start       DateTime  @db.Timestamptz(3)
+  end         DateTime  @db.Timestamptz(3)
+  // Manually placed by the user; preserved when replanning.
+  locked      Boolean   @default(false)
+  completedAt DateTime? @db.Timestamptz(3)
+  rationale   String?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routine Routine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([routineId, start])
+  @@index([taskId])
+}
+
+model EstimateCache {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  // sha256(title + description + priority)
+  hash             String
+  complexity       Int
+  estimatedMinutes Int
+  splittable       Boolean
+  rationale        String
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hash])
+}

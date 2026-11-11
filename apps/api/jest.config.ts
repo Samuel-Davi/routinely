@@ -1,0 +1,18 @@
+import type { Config } from 'jest';
+
+const config: Config = {
+  rootDir: '.',
+  testEnvironment: 'node',
+  testMatch: ['<rootDir>/src/**/*.spec.ts'],
+  transform: { '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }] },
+  moduleNameMapper: {
+    '^@routinely/shared$': '<rootDir>/../../packages/shared/src/index.ts',
+  },
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/main.ts', '!src/testing/**'],
+  coverageThreshold: {
+    global: {},
+    './src/routines/engine/': { statements: 95, branches: 90, functions: 95, lines: 95 },
+  },
+};
+
+export default config;

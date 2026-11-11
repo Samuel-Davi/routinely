@@ -1,13 +1,18 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-onlyBuiltDependencies:
-  - esbuild
-  - '@prisma/client'
-  - '@prisma/engines'
-  - prisma
-  - '@nestjs/core'
-  - '@swc/core'
-  - sharp
-  - unrs-resolver
-  - msw
+
+# Dependencies allowed to run install scripts
+allowBuilds:
+  esbuild: true
+  prisma: true
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@nestjs/core': true
+  '@swc/core': true
+  sharp: true
+  unrs-resolver: true
+  msw: true
+  protobufjs: false
+  '@parcel/watcher': true
+  '@scarf/scarf': false

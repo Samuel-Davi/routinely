@@ -5,7 +5,7 @@ Formato curto: **contexto → decisão → consequência**.
 ## ADR-001 — Validação de DTO com zod (não class-validator)
 
 - **Contexto:** a API, os formulários do front e a saída estruturada da IA precisam das mesmas regras.
-- **Decisão:** os schemas zod de `packages/shared` são a única fonte de verdade. A API usa um `ZodValidationPipe` próprio e gera o Swagger a partir dos mesmos schemas (`z.toJSONSchema`). `nestjs-zod` foi descartado porque seus peers ainda não cobrem o NestJS 12.
+- **Decisão:** os schemas zod de `packages/shared` são a única fonte de verdade. A API usa um `ZodValidationPipe` próprio e gera o Swagger a partir dos mesmos schemas (`z.toJSONSchema`). Um pipe de ~10 linhas evita mais uma dependência (`nestjs-zod`) entre o zod 4 e o Nest.
 - **Consequência:** nenhuma regra duplicada; sem decorators de `class-validator` nos DTOs.
 
 ## ADR-002 — Modelo de tempo
@@ -40,6 +40,7 @@ Formato curto: **contexto → decisão → consequência**.
 
 ## ADR-008 — Versões fixadas por compatibilidade
 
+- **NestJS 11 (linha `legacy`, mantida):** o NestJS 12 é ESM-only e seu template usa Vitest; como o requisito é Jest na API, a linha 11 (CommonJS) é o caminho estável com Jest + ts-jest.
 - **Prisma 6.x:** é a major que mantém `url`/`directUrl` no `schema.prisma` (requisito para a troca para Supabase).
 - **TypeScript 6.0:** `typescript-eslint` e `@nestjs/swagger` ainda não aceitam TS 7.
 - **`@dnd-kit/core` 6:** API estável (a nova `@dnd-kit/react` ainda é 0.x).
