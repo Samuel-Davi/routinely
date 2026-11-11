@@ -13,6 +13,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "prisma:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "tasks:link": "dotenv -e ../../.env -- node scripts/link-tasks.mjs",
     "prisma:seed": "dotenv -e ../../.env -- prisma db seed",
     "postinstall": "prisma generate"
   },

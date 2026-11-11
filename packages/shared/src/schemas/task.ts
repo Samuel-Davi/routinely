@@ -17,6 +17,7 @@ const taskFields = {
   description: z.string().trim().max(2000, 'Máximo de 2000 caracteres').default(''),
   priority: prioritySchema,
   deadline: isoDateTimeSchema,
+  commitmentId: idSchema.nullish(),
 };
 
 export const createTaskSchema = z.object(taskFields);
@@ -36,6 +37,7 @@ export const updateTaskSchema = z
     description: z.string().trim().max(2000, 'Máximo de 2000 caracteres'),
     priority: prioritySchema,
     deadline: isoDateTimeSchema,
+    commitmentId: idSchema.nullable(),
     status: taskStatusSchema,
     estimate: taskEstimateOverrideSchema,
   })
@@ -49,6 +51,7 @@ export const taskSchema = z.object({
   description: z.string(),
   priority: prioritySchema,
   deadline: isoDateTimeSchema,
+  commitmentId: idSchema.nullable(),
   status: taskStatusSchema,
   complexity: complexitySchema.nullable(),
   estimatedMinutes: z.number().int().nullable(),

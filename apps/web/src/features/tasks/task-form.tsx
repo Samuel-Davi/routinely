@@ -8,15 +8,17 @@ import {
   localDateTimeSchema,
   prioritySchema,
   taskEstimateOverrideSchema,
+  nextCommitmentStart,
   toLocalDateTime,
   type Task,
 } from '@routinely/shared';
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { Button, Input, Select, Sheet, Textarea, useToast } from '@/components/ui';
+import { useCommitments } from '@/features/commitments/api';
 import { errorMessage } from '@/lib/api-client';
-import { PRIORITY_LABEL } from '@/lib/labels';
+import { PRIORITY_LABEL, formatDateTime } from '@/lib/labels';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { selectTaskDraft, taskDraftSaved } from '@/lib/store/ui-slice';
 import { useCreateTask, useReestimateTask, useUpdateTask } from './api';
@@ -27,6 +29,8 @@ const formSchema = z.object({
   description: z.string().trim().max(2000, 'Máximo de 2000 caracteres'),
   priority: prioritySchema,
   deadline: localDateTimeSchema,
+  /** Empty string = no commitment. */
+  commitmentId: z.string(),
   // Only shown (and sent) when editing an estimated task.
   estimate: taskEstimateOverrideSchema.optional(),
 });
@@ -35,6 +39,14 @@ type FormValues = z.infer<typeof formSchema>;
 /** Tomorrow at 18:00 local: a sensible default deadline. */
 function defaultDeadline(timezone: string): string {
   return `${toLocalDateTime(Date.now() + 86_400_000, timezone).slice(0, 10)}T18:00`;
+}
+
+/** Next occurrence of a commitment, counted from the current moment. */
+function nextStartFromNow(
+  commitment: Parameters<typeof nextCommitmentStart>[0],
+  timezone: string,
+): number | null {
+  return nextCommitmentStart(commitment, Date.now(), timezone);
 }
 
 interface TaskFormSheetProps {
@@ -52,6 +64,9 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
   const create = useCreateTask();
   const update = useUpdateTask();
   const reestimate = useReestimateTask();
+  const { data: commitments = [] } = useCommitments();
+  // Deadline suggestion for the commitment the user just picked (computed in the event handler).
+  const [suggestion, setSuggestion] = useState<{ commitmentId: string; at: number } | null>(null);
   const editing = Boolean(task);
   const hasEstimate =
     task?.estimationStatus === 'DONE' && task.estimatedMinutes !== null && task.complexity !== null;
@@ -61,6 +76,8 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
     handleSubmit,
     reset,
     getValues,
+    setValue,
+    control,
     formState: { errors, isDirty, dirtyFields },
   } = useForm<FormValues>({ resolver: zodResolver(formSchema) });
 
@@ -72,6 +89,7 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
         description: task.description,
         priority: task.priority,
         deadline: toLocalDateTime(Date.parse(task.deadline), timezone),
+        commitmentId: task.commitmentId ?? '',
         estimate:
           task.estimatedMinutes !== null && task.complexity !== null
             ? {
@@ -86,6 +104,7 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
         title: draft?.title ?? '',
         description: draft?.description ?? '',
         priority: draft?.priority ?? 'MEDIUM',
+        commitmentId: draft?.commitmentId ?? '',
         deadline: draft?.deadline
           ? toLocalDateTime(Date.parse(draft.deadline), timezone)
           : defaultDeadline(timezone),
@@ -94,6 +113,19 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
     // `draft` is read once on open on purpose: typing must not reset the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task, timezone, reset]);
+
+  // Suggestion only: the user confirms by pressing the button (never applied automatically).
+  const linkedId = useWatch({ control, name: 'commitmentId' });
+  const suggestedDeadline =
+    suggestion && suggestion.commitmentId === linkedId
+      ? { at: suggestion.at, local: toLocalDateTime(suggestion.at, timezone) }
+      : null;
+
+  function onCommitmentChange(event: { target: { value: string } }) {
+    const picked = commitments.find((item) => item.id === event.target.value);
+    const at = picked ? nextStartFromNow(picked, timezone) : null;
+    setSuggestion(picked && at !== null ? { commitmentId: picked.id, at } : null);
+  }
 
   const toIso = (local: string) => new Date(fromLocalDateTime(local, timezone)).toISOString();
 
@@ -106,6 +138,7 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
           title: values.title,
           description: values.description,
           priority: values.priority,
+          ...(values.commitmentId ? { commitmentId: values.commitmentId } : {}),
           ...(deadline.success ? { deadline: toIso(deadline.data) } : {}),
         }),
       );
@@ -119,6 +152,7 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
       description: values.description,
       priority: values.priority,
       deadline: toIso(values.deadline),
+      commitmentId: values.commitmentId || null,
     };
     try {
       if (task) {
@@ -205,6 +239,37 @@ export function TaskFormSheet({ open, onClose, timezone, task }: TaskFormSheetPr
             error={errors.deadline?.message}
             {...register('deadline')}
           />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Select
+            label="Relacionada a"
+            {...register('commitmentId', { onChange: onCommitmentChange })}
+          >
+            <option value="">Nenhum compromisso</option>
+            {commitments.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+          </Select>
+          {suggestedDeadline ? (
+            <p className="flex flex-wrap items-center gap-2 text-footnote text-label-secondary">
+              Próxima ocorrência: {formatDateTime(suggestedDeadline.at, timezone)}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  setValue('deadline', suggestedDeadline.local, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+              >
+                Usar como prazo
+              </Button>
+            </p>
+          ) : null}
         </div>
 
         {hasEstimate ? (

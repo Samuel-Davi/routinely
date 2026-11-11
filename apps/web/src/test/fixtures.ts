@@ -24,6 +24,7 @@ export function makeTask(overrides: Partial<Task> = {}): Task {
     description: 'Slides para o cliente',
     priority: 'HIGH',
     deadline: '2026-11-13T22:00:00.000Z',
+    commitmentId: null,
     status: 'TODO',
     complexity: 4,
     estimatedMinutes: 180,
@@ -72,6 +73,7 @@ export function makeBlock(overrides: Partial<RoutineBlock> = {}): RoutineBlock {
       priority: 'HIGH',
       status: 'SCHEDULED',
       deadline: '2026-11-13T22:00:00.000Z',
+      commitmentId: null,
     },
     ...overrides,
   };

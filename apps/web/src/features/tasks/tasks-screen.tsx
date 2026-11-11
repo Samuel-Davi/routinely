@@ -10,13 +10,21 @@ import {
   ErrorState,
   LoadingRegion,
   SegmentedControl,
+  Select,
   Skeleton,
   useToast,
 } from '@/components/ui';
+import { useCommitments } from '@/features/commitments/api';
 import { useTimezone } from '@/features/preferences/api';
 import { errorMessage } from '@/lib/api-client';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
-import { panelClosed, panelOpened, selectPanel } from '@/lib/store/ui-slice';
+import {
+  panelClosed,
+  panelOpened,
+  selectPanel,
+  selectTaskCommitmentFilter,
+  taskCommitmentFilterSet,
+} from '@/lib/store/ui-slice';
 import { useDeleteTask, useReestimateTask, useTasks, useUpdateTask } from './api';
 import { TaskCard } from './task-card';
 import { TaskFormSheet } from './task-form';
@@ -27,6 +35,8 @@ export function TasksScreen() {
   const dispatch = useAppDispatch();
   const panel = useAppSelector(selectPanel);
   const timezone = useTimezone();
+  const commitmentFilter = useAppSelector(selectTaskCommitmentFilter);
+  const { data: commitments = [] } = useCommitments();
   const { data, isPending, isError, error, refetch } = useTasks();
   const update = useUpdateTask();
   const remove = useDeleteTask();
@@ -46,7 +56,34 @@ export function TasksScreen() {
     }),
     [data],
   );
-  const visible = tab === 'open' ? open : done;
+  const titleOf = useMemo(
+    () => new Map(commitments.map((item) => [item.id, item.title])),
+    [commitments],
+  );
+  // Only commitments that have tasks are worth offering as a filter.
+  const linkedIds = useMemo(
+    () => [
+      ...new Set((data ?? []).flatMap((task) => (task.commitmentId ? [task.commitmentId] : []))),
+    ],
+    [data],
+  );
+  const activeFilter =
+    commitmentFilter && linkedIds.includes(commitmentFilter) ? commitmentFilter : null;
+  const visible = (tab === 'open' ? open : done).filter(
+    (task) => !activeFilter || task.commitmentId === activeFilter,
+  );
+  // Without a filter, tasks are grouped by commitment (only when something is linked).
+  const groups = useMemo(() => {
+    if (activeFilter || linkedIds.length === 0) return [{ id: null, title: null, tasks: visible }];
+    const byCommitment = linkedIds.flatMap((id) => {
+      const tasks = visible.filter((task) => task.commitmentId === id);
+      return tasks.length > 0 ? [{ id, title: titleOf.get(id) ?? '', tasks }] : [];
+    });
+    const loose = visible.filter((task) => !task.commitmentId);
+    return loose.length > 0
+      ? [...byCommitment, { id: 'none', title: 'Sem compromisso', tasks: loose }]
+      : byCommitment;
+  }, [visible, activeFilter, linkedIds, titleOf]);
 
   const toggleDone = (task: Task) =>
     update.mutate(
@@ -112,6 +149,21 @@ export function TasksScreen() {
               { value: 'done', label: `Concluídas (${done.length})` },
             ]}
           />
+          {linkedIds.length > 0 ? (
+            <Select
+              label="Compromisso"
+              containerClassName="mb-4 max-w-xs"
+              value={activeFilter ?? ''}
+              onChange={(event) => dispatch(taskCommitmentFilterSet(event.target.value || null))}
+            >
+              <option value="">Todos</option>
+              {linkedIds.map((id) => (
+                <option key={id} value={id}>
+                  {titleOf.get(id) ?? 'Compromisso'}
+                </option>
+              ))}
+            </Select>
+          ) : null}
           {visible.length === 0 ? (
             <EmptyState
               icon={tab === 'open' ? 'check' : 'checklist'}
@@ -123,20 +175,36 @@ export function TasksScreen() {
               }
             />
           ) : (
-            <ul className="flex flex-col gap-3">
-              {visible.map((task) => (
-                <li key={task.id}>
-                  <TaskCard
-                    task={task}
-                    timezone={timezone}
-                    onToggleDone={toggleDone}
-                    onEdit={(item) => openForm(item.id)}
-                    onDelete={setDeleting}
-                    onReestimate={(item) => reestimate.mutate(item.id)}
-                  />
-                </li>
+            <div className="flex flex-col gap-6">
+              {groups.map((group) => (
+                <section key={group.id ?? 'all'} aria-label={group.title ?? undefined}>
+                  {group.title ? (
+                    <h2 className="mb-2 text-footnote font-semibold text-label-secondary">
+                      {group.title}
+                    </h2>
+                  ) : null}
+                  <ul className="flex flex-col gap-3">
+                    {group.tasks.map((task) => (
+                      <li key={task.id}>
+                        <TaskCard
+                          task={task}
+                          timezone={timezone}
+                          commitmentTitle={
+                            group.id === null || group.id === 'none'
+                              ? titleOf.get(task.commitmentId ?? '')
+                              : undefined
+                          }
+                          onToggleDone={toggleDone}
+                          onEdit={(item) => openForm(item.id)}
+                          onDelete={setDeleting}
+                          onReestimate={(item) => reestimate.mutate(item.id)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
         </>
       )}

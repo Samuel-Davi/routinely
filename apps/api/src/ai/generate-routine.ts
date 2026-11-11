@@ -25,6 +25,8 @@ export interface RoutinePlanningInput {
     /** Minutes still to be allocated. */
     minutes: number;
     splittable: boolean;
+    /** Title of the fixed commitment the task relates to, when linked. */
+    commitment?: string;
   }[];
   lockedBlocks: { title: string; start: string; end: string }[];
   /** Domain validation errors of a previous proposal, fed back to the model. */
@@ -79,6 +81,7 @@ export class RoutineProposer {
         `complexidade ${task.complexity}`,
         `${task.minutes} min`,
         `divisível: ${task.splittable ? 'sim' : 'não'}`,
+        ...(task.commitment ? [`relacionada a "${sanitizeForPrompt(task.commitment, 80)}"`] : []),
       ].join(' | ');
     });
     const lockedBlocks = input.lockedBlocks.map(

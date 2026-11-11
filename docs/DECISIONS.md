@@ -95,6 +95,10 @@ Formato curto: **contexto → decisão → consequência**.
 
 Compromissos têm `requiresTravel` (padrão falso) e Ajustes tem `travelMinutes` (padrão 60; 0 desativa). Após o **último** compromisso do dia que exige deslocamento, `travelMinutes` viram um intervalo ocupado, recortado na janela diária. Ele entra em `computeFreeWindows` e em `checkPlacement` (`OVERLAPS_TRAVEL`), então vale para IA, heurístico e arrasto manual. Se o compromisso seguinte começa antes do fim do deslocamento, a UI mostra aviso. Compromissos fixos sobrepostos não são bloqueados: a API devolve `overlapsWith`, a UI avisa, e o planejador trata a união dos intervalos. Migration aditiva.
 
+## ADR-019 — Tarefa vinculada a compromisso fixo
+
+`Task.commitmentId` é opcional (FK com `onDelete: SetNull`: apagar a aula não apaga a tarefa). A API só aceita compromissos do próprio usuário. O vínculo serve a três usos: contexto compacto para a IA (só o título do compromisso na linha da tarefa), **sugestão** de prazo (próxima ocorrência; o usuário confirma com um botão, nunca é aplicada sozinha) e agrupamento/filtro na tela de tarefas (filtro no Redux, dados no TanStack Query). A migração dos dados antigos (sufixo "(Nome)" no título) é o script `pnpm --filter @routinely/api tasks:link`, com `--dry-run` por padrão e `--apply` explícito; títulos ambíguos (mais de um compromisso com o mesmo nome) são ignorados em vez de adivinhados.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `GEMINI_RETRY_MODEL=gemini-3.6-flash` foi mantido como especificado, mas a referência oficial consultada lista `gemini-3.8-flash` e `gemini-3.5-flash-lite` como modelos atuais e não menciona `gemini-3.6-flash`. Se o nome não existir, o retry falha e o app cai no heurístico (comportamento seguro). Confirme o nome e ajuste a variável.

@@ -8,6 +8,7 @@ export function toTaskDto(row: TaskRow): Task {
     description: row.description,
     priority: row.priority,
     deadline: row.deadline.toISOString(),
+    commitmentId: row.commitmentId,
     status: row.status,
     complexity: row.complexity,
     estimatedMinutes: row.estimatedMinutes,

@@ -92,7 +92,8 @@ model FixedCommitment {
   createdAt  DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt  DateTime           @updatedAt @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks Task[]
 
   @@index([userId])
 }
@@ -100,6 +101,8 @@ model FixedCommitment {
 model Task {
   id               String            @id @default(uuid()) @db.Uuid
   userId           String            @db.Uuid
+  // Optional link to the fixed commitment this task relates to (e.g. a class)
+  commitmentId     String?           @db.Uuid
   title            String
   description      String            @default("")
   priority         Priority          @default(MEDIUM)
@@ -117,10 +120,12 @@ model Task {
   createdAt        DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
 
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  blocks RoutineBlock[]
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commitment FixedCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  blocks     RoutineBlock[]
 
   @@index([userId, status])
+  @@index([commitmentId])
   @@index([userId, deadline])
 }
 

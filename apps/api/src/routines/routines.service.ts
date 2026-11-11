@@ -173,6 +173,13 @@ export class RoutinesService implements OnApplicationBootstrap {
       const openTasks = allTasks.filter((task) => task.status !== 'DONE');
       const estimated = openTasks.filter((task) => task.estimationStatus === 'DONE');
       const titles = new Map(allTasks.map((task) => [task.id, task.title]));
+      const commitmentTitles = new Map(commitments.map((item) => [item.id, item.title]));
+      const commitmentOfTask = new Map(
+        allTasks.flatMap((task) => {
+          const title = task.commitmentId ? commitmentTitles.get(task.commitmentId) : undefined;
+          return title ? [[task.id, title] as const] : [];
+        }),
+      );
 
       const carried = selectCarriedBlocks(previous?.blocks ?? [], {
         openTaskIds: new Set(openTasks.map((task) => task.id)),
@@ -191,7 +198,9 @@ export class RoutinesService implements OnApplicationBootstrap {
       const plan = await planRoutine({
         tasks: engineTasks,
         context,
-        propose: this.proposer.isAvailable() ? this.buildPropose(context, titles) : undefined,
+        propose: this.proposer.isAvailable()
+          ? this.buildPropose(context, titles, commitmentOfTask)
+          : undefined,
       });
 
       const blocks: NewBlock[] = [
@@ -244,7 +253,11 @@ export class RoutinesService implements OnApplicationBootstrap {
   }
 
   /** Adapts the engine's request to the LLM use case (local time strings in, instants out). */
-  private buildPropose(context: PlanningContext, titles: ReadonlyMap<string, string>): ProposeFn {
+  private buildPropose(
+    context: PlanningContext,
+    titles: ReadonlyMap<string, string>,
+    commitmentOfTask: ReadonlyMap<string, string>,
+  ): ProposeFn {
     const { prefs } = context;
     const local = (instant: number) => toLocalDateTime(instant, prefs.timezone);
     return async ({ tasks, tier, feedback }) => {
@@ -265,6 +278,7 @@ export class RoutinesService implements OnApplicationBootstrap {
           complexity: task.complexity,
           minutes: task.minutes,
           splittable: task.splittable,
+          commitment: commitmentOfTask.get(task.id),
         })),
         lockedBlocks: context.fixedBlocks
           .filter((block) => block.end > context.now)

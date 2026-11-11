@@ -2,18 +2,31 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma, Task as TaskRow, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type TaskCreateData = Pick<TaskRow, 'title' | 'description' | 'priority' | 'deadline'>;
+export type TaskCreateData = Pick<TaskRow, 'title' | 'description' | 'priority' | 'deadline'> &
+  Partial<Pick<TaskRow, 'commitmentId'>>;
 export type TaskUpdateData = Prisma.TaskUncheckedUpdateInput;
 
 @Injectable()
 export class TasksRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(userId: string, filter: { status?: TaskStatus } = {}): Promise<TaskRow[]> {
+  findAll(
+    userId: string,
+    filter: { status?: TaskStatus; commitmentId?: string } = {},
+  ): Promise<TaskRow[]> {
     return this.prisma.task.findMany({
-      where: { userId, ...(filter.status ? { status: filter.status } : {}) },
+      where: {
+        userId,
+        ...(filter.status ? { status: filter.status } : {}),
+        ...(filter.commitmentId ? { commitmentId: filter.commitmentId } : {}),
+      },
       orderBy: [{ deadline: 'asc' }, { createdAt: 'asc' }],
     });
+  }
+
+  /** Whether the commitment exists and belongs to the user. */
+  async commitmentExists(userId: string, id: string): Promise<boolean> {
+    return (await this.prisma.fixedCommitment.count({ where: { id, userId } })) > 0;
   }
 
   findById(userId: string, id: string): Promise<TaskRow | null> {

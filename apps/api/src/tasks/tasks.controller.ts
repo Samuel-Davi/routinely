@@ -28,7 +28,10 @@ import { ApiIdParam, ApiZodBody, ApiZodResponse } from '../common/swagger';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { TasksService } from './tasks.service';
 
-const listQuerySchema = z.object({ status: taskStatusSchema.optional() });
+const listQuerySchema = z.object({
+  status: taskStatusSchema.optional(),
+  commitmentId: z.string().uuid().optional(),
+});
 type ListQuery = z.infer<typeof listQuerySchema>;
 
 @ApiTags('tasks')
@@ -39,6 +42,7 @@ export class TasksController {
   @Get()
   @ApiOperation({ summary: 'Lista as tarefas, ordenadas por deadline' })
   @ApiQuery({ name: 'status', required: false, enum: TASK_STATUSES })
+  @ApiQuery({ name: 'commitmentId', required: false })
   @ApiZodResponse(z.array(taskSchema))
   list(@Query(new ZodValidationPipe(listQuerySchema)) query: ListQuery): Promise<Task[]> {
     return this.service.list(query);

@@ -26,6 +26,7 @@ export const routineBlockSchema = z.object({
     priority: prioritySchema,
     status: taskStatusSchema,
     deadline: isoDateTimeSchema,
+    commitmentId: idSchema.nullable(),
   }),
 });
 export type RoutineBlock = z.infer<typeof routineBlockSchema>;

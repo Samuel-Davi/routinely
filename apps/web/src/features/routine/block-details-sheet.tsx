@@ -9,6 +9,7 @@ import {
 } from '@routinely/shared';
 import { useState } from 'react';
 import { Badge, Button, Input, Sheet } from '@/components/ui';
+import { useCommitments } from '@/features/commitments/api';
 import { instantAt, isBlockDone } from '@/features/calendar/layout';
 import {
   PRIORITY_LABEL,
@@ -56,6 +57,8 @@ function BlockDetails({ block, onClose }: { block: RoutineBlock; onClose: () => 
   const lock = useLockBlock();
   const move = useMoveBlock();
   const done = isBlockDone(block);
+  const { data: commitments } = useCommitments();
+  const commitmentTitle = commitments?.find((item) => item.id === block.task.commitmentId)?.title;
 
   const localStart = toLocalDateTime(Date.parse(block.start), timezone);
   const localEnd = toLocalDateTime(Date.parse(block.end), timezone);
@@ -85,6 +88,11 @@ function BlockDetails({ block, onClose }: { block: RoutineBlock; onClose: () => 
           <Badge tone={PRIORITY_TONE[block.task.priority]}>
             Prioridade {PRIORITY_LABEL[block.task.priority].toLowerCase()}
           </Badge>
+          {commitmentTitle ? (
+            <Badge tone="gray" icon="calendar">
+              {commitmentTitle}
+            </Badge>
+          ) : null}
           {done ? (
             <Badge tone="green" icon="check">
               Concluído

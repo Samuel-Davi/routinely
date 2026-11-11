@@ -8,6 +8,7 @@ import {
   findTravelConflicts,
   lunchInterval,
   mergeIntervals,
+  nextCommitmentStart,
   overlaps,
   subtractIntervals,
   travelInterval,
@@ -290,5 +291,35 @@ describe('findCommitmentOverlaps', () => {
       { a: 'etica', b: 'piola', daysOfWeek: [5] },
     ]);
     expect(findCommitmentOverlaps([])).toEqual([]);
+  });
+});
+
+describe('nextCommitmentStart', () => {
+  const tz = 'America/Sao_Paulo';
+  const at = (local: string) => fromLocalDateTime(local, tz);
+  // 2026-11-09 is a Monday
+  const tueThu = { daysOfWeek: [2, 4], startTime: '19:00' };
+
+  it('returns the next matching weekday', () => {
+    expect(nextCommitmentStart(tueThu, at('2026-11-09T10:00'), tz)).toBe(at('2026-11-10T19:00'));
+  });
+
+  it('uses today when the start is still ahead', () => {
+    expect(nextCommitmentStart(tueThu, at('2026-11-10T08:00'), tz)).toBe(at('2026-11-10T19:00'));
+  });
+
+  it('skips today once the start has passed', () => {
+    expect(nextCommitmentStart(tueThu, at('2026-11-10T19:00'), tz)).toBe(at('2026-11-12T19:00'));
+  });
+
+  it('wraps to next week for a single weekday', () => {
+    const monday = { daysOfWeek: [1], startTime: '08:00' };
+    expect(nextCommitmentStart(monday, at('2026-11-09T09:00'), tz)).toBe(at('2026-11-16T08:00'));
+  });
+
+  it('returns null when it never occurs', () => {
+    expect(
+      nextCommitmentStart({ daysOfWeek: [], startTime: '08:00' }, at('2026-11-09T09:00'), tz),
+    ).toBeNull();
   });
 });

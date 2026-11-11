@@ -16,6 +16,8 @@ import {
 interface TaskCardProps {
   task: Task;
   timezone: string;
+  /** Title of the linked commitment, when the task has one. */
+  commitmentTitle?: string;
   onToggleDone: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
@@ -103,6 +105,7 @@ function Estimate({ task, onReestimate }: { task: Task; onReestimate: () => void
 export function TaskCard({
   task,
   timezone,
+  commitmentTitle,
   onToggleDone,
   onEdit,
   onDelete,
@@ -155,6 +158,11 @@ export function TaskCard({
 
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone={PRIORITY_TONE[task.priority]}>{PRIORITY_LABEL[task.priority]}</Badge>
+          {commitmentTitle ? (
+            <Badge tone="gray" icon="calendar">
+              {commitmentTitle}
+            </Badge>
+          ) : null}
           <Badge tone={done ? 'green' : task.status === 'SCHEDULED' ? 'blue' : 'gray'}>
             {STATUS_LABEL[task.status]}
           </Badge>

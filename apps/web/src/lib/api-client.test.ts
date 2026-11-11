@@ -10,6 +10,7 @@ const task = {
   description: '',
   priority: 'HIGH',
   deadline: '2026-11-13T22:00:00.000Z',
+  commitmentId: null,
   status: 'TODO',
   complexity: null,
   estimatedMinutes: null,

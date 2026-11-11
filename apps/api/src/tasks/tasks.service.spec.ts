@@ -12,6 +12,7 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-1',
     userId: USER_ID,
+    commitmentId: null,
     title: 'Relatório',
     description: 'Mensal',
     priority: 'MEDIUM',
@@ -34,6 +35,7 @@ function setup(existing: TaskRow | null = taskRow()) {
   const repository = {
     findAll: jest.fn().mockResolvedValue(existing ? [existing] : []),
     findById: jest.fn().mockResolvedValue(existing),
+    commitmentExists: jest.fn().mockImplementation(async (_u, id) => id === 'aaaa-own'),
     create: jest
       .fn()
       .mockImplementation(async (_userId, data) =>
@@ -54,6 +56,53 @@ function setup(existing: TaskRow | null = taskRow()) {
 }
 
 describe('TasksService', () => {
+  it("links a task to the user's own commitment on create", async () => {
+    const { service, repository } = setup();
+    await service.create({
+      title: 'Prova',
+      description: '',
+      priority: 'HIGH',
+      deadline: '2026-11-20T12:00:00.000Z',
+      commitmentId: 'aaaa-own',
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      USER_ID,
+      expect.objectContaining({ commitmentId: 'aaaa-own' }),
+    );
+  });
+
+  it("rejects a commitment that is not the user's (create and update)", async () => {
+    const { service, repository } = setup();
+    await expect(
+      service.create({
+        title: 'X',
+        description: '',
+        priority: 'LOW',
+        deadline: '2026-11-20T12:00:00.000Z',
+        commitmentId: 'someone-elses',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.update('task-1', { commitmentId: 'someone-elses' }),
+    ).rejects.toBeInstanceOf(AppError);
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('unlinks with null and flags the plan as changed when the link changes', async () => {
+    const { service, repository } = setup(taskRow({ commitmentId: 'aaaa-own' }));
+    await service.update('task-1', { commitmentId: null });
+    expect(repository.update).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({ commitmentId: null, planChangedAt: expect.any(Date) }),
+    );
+  });
+
+  it('filters the list by commitment', async () => {
+    const { service, repository } = setup();
+    await service.list({ commitmentId: 'aaaa-own' });
+    expect(repository.findAll).toHaveBeenCalledWith(USER_ID, { commitmentId: 'aaaa-own' });
+  });
+
   it('lists tasks as DTOs with ISO dates', async () => {
     const { service, repository } = setup();
     const tasks = await service.list({ status: 'TODO' });

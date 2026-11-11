@@ -72,6 +72,18 @@ describe('RoutineProposer', () => {
     ]);
   });
 
+  it('adds the related commitment to a task line only when linked', () => {
+    const { proposer } = setup();
+    const { prompt } = proposer.buildPrompt({
+      ...input,
+      tasks: input.tasks.map((task, index) =>
+        index === 0 ? { ...task, commitment: 'Aula de "Ética"' } : task,
+      ),
+    });
+    expect(prompt).toContain('relacionada a "');
+    expect(prompt.match(/relacionada a/g)).toHaveLength(1);
+  });
+
   it('says so when there are no locked blocks and appends validator feedback', () => {
     const { proposer } = setup();
     const { prompt } = proposer.buildPrompt({

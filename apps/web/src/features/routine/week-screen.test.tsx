@@ -263,12 +263,15 @@ describe('WeekScreen', () => {
 
   it('moves a block from the details form, validating as the user types', async () => {
     const block = makeBlock();
-    mockApi({ routine: makeRoutine({ blocks: [block] }) });
+    const world = mockApi({ routine: makeRoutine({ blocks: [block] }) });
     let body: unknown;
     server.use(
       http.patch(`${API}/routines/blocks/${block.id}`, async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({ ...block, ...(body as object), locked: true });
+        const moved = { ...block, ...(body as object), locked: true };
+        // The server persists the move, so the refetch after the mutation returns it too.
+        world.routine = makeRoutine({ blocks: [moved] });
+        return HttpResponse.json(moved);
       }),
     );
     renderWithProviders(<WeekScreen />);

@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { makeTask } from '@/test/fixtures';
+import { makeCommitment, makeTask } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/render';
 import { API, server } from '@/test/server';
 import { TaskFormSheet } from './task-form';
@@ -46,6 +46,7 @@ describe('TaskFormSheet', () => {
       description: 'Capítulos 4 a 6',
       priority: 'URGENT',
       deadline: '2026-11-20T22:00:00.000Z', // 18:00 in Manaus
+      commitmentId: null,
     });
     expect(await screen.findByText(/A IA está estimando/)).toBeInTheDocument();
   });
@@ -155,5 +156,50 @@ describe('TaskFormSheet', () => {
       await screen.findByText('Muitas requisições. Tente novamente em instantes.'),
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('links a commitment and only suggests the deadline until the user accepts', async () => {
+    const commitment = makeCommitment({
+      title: 'Web Academy',
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+      startTime: '19:00',
+    });
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.get(`${API}/fixed-commitments`, () => HttpResponse.json([commitment])),
+      http.post(`${API}/tasks`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(makeTask({ commitmentId: commitment.id }), { status: 201 });
+      }),
+      http.get(`${API}/tasks`, () => HttpResponse.json([])),
+      http.get(`${API}/routines/replan-suggestion`, () =>
+        HttpResponse.json({ needsReplan: false, reasons: [] }),
+      ),
+      http.get(`${API}/routines/active`, () => HttpResponse.json({ routine: null })),
+    );
+    renderWithProviders(<TaskFormSheet open onClose={vi.fn()} timezone={TZ} />);
+
+    await userEvent.type(screen.getByLabelText('Título'), 'Atividade de React');
+    const deadline = screen.getByLabelText('Prazo');
+    await userEvent.clear(deadline);
+    await userEvent.type(deadline, '2030-01-10T10:00');
+    await userEvent.selectOptions(
+      await screen
+        .findByRole('option', { name: 'Web Academy' })
+        .then(() => screen.getByLabelText('Relacionada a')),
+      commitment.id,
+    );
+
+    // suggestion appears but the deadline is untouched
+    expect(await screen.findByText(/Próxima ocorrência/)).toBeInTheDocument();
+    expect(deadline).toHaveValue('2030-01-10T10:00');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Usar como prazo' }));
+    expect(deadline).not.toHaveValue('2030-01-10T10:00');
+    expect((deadline as HTMLInputElement).value).toMatch(/T19:00$/);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.commitmentId).toBe(commitment.id);
   });
 });

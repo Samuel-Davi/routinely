@@ -134,6 +134,24 @@ export function travelInterval(
   return end > start ? { start, end } : null;
 }
 
+/**
+ * Start (epoch ms) of the next occurrence of a weekly commitment strictly after `now`,
+ * looking up to 8 days ahead. Used only to *suggest* a task deadline. `null` if it never occurs.
+ */
+export function nextCommitmentStart(
+  commitment: Pick<SchedulingCommitment, 'daysOfWeek' | 'startTime'>,
+  now: number,
+  timeZone: string,
+): number | null {
+  const today = utcToZonedParts(now, timeZone).date;
+  for (const date of dateRange(today, 8)) {
+    if (!commitment.daysOfWeek.includes(dayOfWeekOf(date))) continue;
+    const start = zonedToUtcMs(date, timeToMinutes(commitment.startTime), timeZone);
+    if (start > now) return start;
+  }
+  return null;
+}
+
 export interface CommitmentOverlap {
   /** Ids of the two commitments, in input order. */
   a: string;

@@ -4,7 +4,16 @@ import type { RoutineDiff, UnscheduledTask } from '@routinely/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 const blockInclude = {
-  task: { select: { id: true, title: true, priority: true, status: true, deadline: true } },
+  task: {
+    select: {
+      id: true,
+      title: true,
+      priority: true,
+      status: true,
+      deadline: true,
+      commitmentId: true,
+    },
+  },
 } satisfies Prisma.RoutineBlockInclude;
 
 const routineInclude = {

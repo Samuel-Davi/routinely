@@ -23,6 +23,7 @@ export function toBlockDto(block: BlockWithTask): RoutineBlock {
       priority: block.task.priority,
       status: block.task.status,
       deadline: block.task.deadline.toISOString(),
+      commitmentId: block.task.commitmentId,
     },
   };
 }

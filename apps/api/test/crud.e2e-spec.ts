@@ -176,6 +176,52 @@ describe('CRUD endpoints (e2e)', () => {
         .expect(400);
     });
 
+    describe('commitment link', () => {
+      const commitment = {
+        title: 'Aula de Ética',
+        daysOfWeek: [5],
+        startTime: '16:00',
+        endTime: '18:00',
+        category: 'STUDY',
+        color: 'purple',
+      };
+
+      it('links, filters by commitment and unlinks when the commitment is deleted', async () => {
+        const linked = (await http().post('/fixed-commitments').send(commitment).expect(201)).body;
+        const withLink = await http()
+          .post('/tasks')
+          .send({ ...task, commitmentId: linked.id })
+          .expect(201);
+        const without = await http().post('/tasks').send(task).expect(201);
+        expect(withLink.body.commitmentId).toBe(linked.id);
+        expect(without.body.commitmentId).toBeNull();
+
+        const filtered = await http().get(`/tasks?commitmentId=${linked.id}`).expect(200);
+        expect(filtered.body.map((item: { id: string }) => item.id)).toEqual([withLink.body.id]);
+
+        await http().delete(`/fixed-commitments/${linked.id}`).expect(204);
+        const after = await http().get(`/tasks/${withLink.body.id}`).expect(200);
+        expect(after.body.commitmentId).toBeNull();
+      });
+
+      it('rejects an unknown commitment and allows unlinking with null', async () => {
+        await http()
+          .post('/tasks')
+          .send({ ...task, commitmentId: '00000000-0000-4000-8000-000000000000' })
+          .expect(404);
+        const linked = (await http().post('/fixed-commitments').send(commitment).expect(201)).body;
+        const created = await http()
+          .post('/tasks')
+          .send({ ...task, commitmentId: linked.id })
+          .expect(201);
+        const patched = await http()
+          .patch(`/tasks/${created.body.id}`)
+          .send({ commitmentId: null })
+          .expect(200);
+        expect(patched.body.commitmentId).toBeNull();
+      });
+    });
+
     it('deletes a task', async () => {
       const created = await http().post('/tasks').send(task).expect(201);
       await http().delete(`/tasks/${created.body.id}`).expect(204);

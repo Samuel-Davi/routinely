@@ -9,8 +9,10 @@ const handlers = () => ({
   onDelete: vi.fn(),
   onReestimate: vi.fn(),
 });
-const renderCard = (task = makeTask(), props = handlers()) => {
-  render(<TaskCard task={task} timezone="America/Manaus" {...props} />);
+const renderCard = (task = makeTask(), props = handlers(), commitmentTitle?: string) => {
+  render(
+    <TaskCard task={task} timezone="America/Manaus" commitmentTitle={commitmentTitle} {...props} />,
+  );
   return props;
 };
 
@@ -22,6 +24,16 @@ describe('TaskCard', () => {
     expect(screen.getByText('A fazer')).toBeInTheDocument();
     // 22:00Z is 18:00 in Manaus
     expect(screen.getByText(/18:00/)).toBeInTheDocument();
+  });
+
+  it('shows a chip with the linked commitment only when there is one', () => {
+    renderCard(makeTask(), handlers(), 'Web Academy');
+    expect(screen.getByText('Web Academy')).toBeInTheDocument();
+  });
+
+  it('shows no commitment chip by default', () => {
+    renderCard();
+    expect(screen.queryByText('Web Academy')).not.toBeInTheDocument();
   });
 
   it('shows the AI estimate with its rationale', () => {

@@ -15,7 +15,7 @@ export class TasksService {
     @Inject(ESTIMATION_QUEUE) private readonly estimationQueue: EstimationQueue,
   ) {}
 
-  async list(filter: { status?: TaskStatus } = {}): Promise<Task[]> {
+  async list(filter: { status?: TaskStatus; commitmentId?: string } = {}): Promise<Task[]> {
     const rows = await this.repository.findAll(this.currentUser.id, filter);
     return rows.map(toTaskDto);
   }
@@ -26,7 +26,9 @@ export class TasksService {
 
   /** Creates the task and asks the AI for an estimate in the background. */
   async create(input: CreateTaskInput): Promise<Task> {
+    await this.assertCommitment(input.commitmentId);
     const row = await this.repository.create(this.currentUser.id, {
+      commitmentId: input.commitmentId ?? null,
       title: input.title,
       description: input.description,
       priority: input.priority,
@@ -47,6 +49,11 @@ export class TasksService {
     if (input.priority !== undefined) data.priority = input.priority;
     if (input.deadline !== undefined) data.deadline = new Date(input.deadline);
     if (input.status !== undefined) data.status = input.status;
+    if (input.commitmentId !== undefined) {
+      await this.assertCommitment(input.commitmentId);
+      data.commitmentId = input.commitmentId;
+      if (input.commitmentId !== current.commitmentId) affectsPlan = true;
+    }
 
     const contentChanged =
       (input.title !== undefined && input.title !== current.title) ||
@@ -97,6 +104,14 @@ export class TasksService {
   async remove(id: string): Promise<void> {
     await this.findOrThrow(id);
     await this.repository.delete(id);
+  }
+
+  /** A task can only point at a commitment of the same user (never trust ids from the body). */
+  private async assertCommitment(commitmentId: string | null | undefined): Promise<void> {
+    if (!commitmentId) return;
+    if (!(await this.repository.commitmentExists(this.currentUser.id, commitmentId))) {
+      throw AppError.notFound('Compromisso');
+    }
   }
 
   private async findOrThrow(id: string): Promise<TaskRow> {
