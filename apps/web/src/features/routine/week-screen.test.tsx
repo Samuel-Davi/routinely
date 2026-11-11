@@ -35,6 +35,9 @@ function mockApi(overrides: Partial<World> = {}) {
   };
   server.use(
     http.get(`${API}/preferences`, () => HttpResponse.json(preferences)),
+    http.get(`${API}/auth/me`, () =>
+      HttpResponse.json({ id: uuid(7), email: 'ana@example.com', name: 'Ana', isDemo: false }),
+    ),
     http.get(`${API}/fixed-commitments`, () => HttpResponse.json([makeCommitment()])),
     http.get(`${API}/tasks`, () => HttpResponse.json([makeTask()])),
     http.get(`${API}/routines/active`, () => HttpResponse.json({ routine: world.routine })),
@@ -256,6 +259,34 @@ describe('WeekScreen', () => {
       untilLastDeadline: false,
       instruction: 'priorize Web Academy',
     });
+  });
+
+  it('warns that text sent to the AI is processed by Google, except for the demo account', async () => {
+    mockApi({ routine: null });
+    const { unmount } = renderWithProviders(<WeekScreen />);
+    await userEvent.click(
+      (await screen.findAllByRole('button', { name: 'Gerar rotina' }))[0] as HTMLElement,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Gerar rotina' });
+    expect(await within(dialog).findByTestId('ai-privacy-notice')).toHaveTextContent(
+      'processadas pelo Google (Gemini, nível gratuito)',
+    );
+    expect(within(dialog).queryByText('Modo demo, sem IA')).not.toBeInTheDocument();
+    unmount();
+
+    // the demo never reaches the AI: no privacy notice, an explanation instead
+    server.use(
+      http.get(`${API}/auth/me`, () =>
+        HttpResponse.json({ id: uuid(8), email: 'demo@x.test', name: 'Conta demo', isDemo: true }),
+      ),
+    );
+    renderWithProviders(<WeekScreen />);
+    await userEvent.click(
+      (await screen.findAllByRole('button', { name: 'Gerar rotina' }))[0] as HTMLElement,
+    );
+    const demoDialog = await screen.findByRole('dialog', { name: 'Gerar rotina' });
+    expect(await within(demoDialog).findAllByText('Modo demo, sem IA')).not.toHaveLength(0);
+    expect(within(demoDialog).queryByTestId('ai-privacy-notice')).not.toBeInTheDocument();
   });
 
   it('omits the instruction when the field is empty', async () => {

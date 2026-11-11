@@ -188,7 +188,8 @@ Todas as variáveis estão documentadas em [`.env.example`](.env.example). As pr
 | `GEMINI_RETRY_MODEL`  | `gemini-3.6-flash`      | Modelo usado no retry de validação                               |
 | `DATABASE_URL`        | Postgres local          | Conexão usada em runtime (pooled em produção)                    |
 | `DIRECT_URL`          | Postgres local          | Conexão direta usada pelas migrations                            |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:3001` | URL da API vista pelo navegador (embutida no build do front)     |
+| `NEXT_PUBLIC_API_URL` | _(vazio)_               | Vazio = o navegador chama `/api/*` na própria origem do front    |
+| `API_INTERNAL_URL`    | `http://localhost:3001` | Para onde o servidor web encaminha `/api/*` (lido em runtime)    |
 | `DEFAULT_TIMEZONE`    | `America/Manaus`        | Fuso padrão (cada usuário pode trocar em Ajustes)                |
 | `CORS_ORIGINS`        | `http://localhost:3000` | Origens permitidas, separadas por vírgula                        |
 | `LLM_TIMEOUT_MS`      | `30000`                 | Timeout por chamada de IA                                        |

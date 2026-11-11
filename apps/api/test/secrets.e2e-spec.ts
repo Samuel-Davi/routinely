@@ -11,8 +11,9 @@ import { RoutinesService } from '../src/routines/routines.service';
 import { TaskEstimationWorker } from '../src/tasks/task-estimation.worker';
 import { asUser, createTestApp, resetDatabase, type HttpFn } from './test-app';
 
-// A made-up key with the real shape; it exists only in this process.
-const FAKE_KEY = 'AIzaSyD-FAKE-test-key-0123456789abcdefg';
+// A made-up key with the real shape, assembled at runtime so no key-shaped literal is ever
+// committed (`pnpm check:secrets` would rightly flag it).
+const FAKE_KEY = ['AIza', 'SyD-FAKE-test-key-0123456789abcdefg'].join('');
 const TZ = 'America/Manaus';
 const at = (local: string) => new Date(fromLocalDateTime(local, TZ));
 

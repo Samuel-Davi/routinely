@@ -2,7 +2,13 @@ import { taskSchema } from '@routinely/shared';
 import { http, HttpResponse } from 'msw';
 import { z } from 'zod';
 import { API, server } from '@/test/server';
-import { ApiRequestError, apiRequest, errorMessage, isApiError } from './api-client';
+import {
+  ApiRequestError,
+  apiRequest,
+  errorMessage,
+  isApiError,
+  setSessionExpiredHandler,
+} from './api-client';
 
 const task = {
   id: '6f1c2d3e-4b5a-4c6d-8e7f-901234567890',
@@ -113,5 +119,98 @@ describe('apiRequest', () => {
   it('falls back to a generic message for unknown errors', () => {
     expect(errorMessage(new Error('boom'))).toBe('Algo deu errado. Tente novamente.');
     expect(errorMessage('x', 'Falhou')).toBe('Falhou');
+  });
+});
+
+describe('apiRequest: expired session', () => {
+  const unauthenticated = () =>
+    HttpResponse.json(
+      { statusCode: 401, code: 'UNAUTHENTICATED', message: 'Faça login para continuar.' },
+      { status: 401 },
+    );
+  afterEach(() => setSessionExpiredHandler(null));
+
+  it('refreshes the session once and replays the request that was refused', async () => {
+    let calls = 0;
+    let refreshes = 0;
+    server.use(
+      http.get(`${API}/tasks`, () =>
+        ++calls === 1 ? unauthenticated() : HttpResponse.json([task]),
+      ),
+      http.post(`${API}/auth/refresh`, () => {
+        refreshes += 1;
+        return HttpResponse.json({ id: task.id, email: 'a@b.co', name: 'A', isDemo: false });
+      }),
+    );
+    const tasks = await apiRequest('/tasks', { schema: z.array(taskSchema) });
+    expect(tasks).toHaveLength(1);
+    expect(calls).toBe(2);
+    expect(refreshes).toBe(1);
+  });
+
+  it('shares one refresh between parallel requests (the refresh token can be used once)', async () => {
+    const seen = new Set<string>();
+    let refreshes = 0;
+    server.use(
+      http.get(`${API}/tasks`, ({ request }) => {
+        const key = request.headers.get('x-test') ?? '';
+        if (!seen.has(key)) {
+          seen.add(key);
+          return unauthenticated();
+        }
+        return HttpResponse.json([]);
+      }),
+      http.post(`${API}/auth/refresh`, async () => {
+        refreshes += 1;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return HttpResponse.json({ id: task.id, email: 'a@b.co', name: 'A', isDemo: false });
+      }),
+    );
+    // three requests are refused at the same time: they must trigger a single refresh
+    seen.clear();
+    server.use(http.get(`${API}/preferences`, () => unauthenticated()));
+    await Promise.allSettled([
+      apiRequest('/preferences'),
+      apiRequest('/preferences'),
+      apiRequest('/preferences'),
+    ]);
+    expect(refreshes).toBe(1);
+  });
+
+  it('leaves for the login screen when the refresh fails, and surfaces the 401', async () => {
+    const expired = vi.fn();
+    setSessionExpiredHandler(expired);
+    server.use(
+      http.get(`${API}/tasks`, () => unauthenticated()),
+      http.post(`${API}/auth/refresh`, () => unauthenticated()),
+    );
+    await expect(apiRequest('/tasks')).rejects.toMatchObject({
+      status: 401,
+      code: 'UNAUTHENTICATED',
+    });
+    expect(expired).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not try to refresh on auth routes: a wrong password is not an expired session', async () => {
+    let refreshes = 0;
+    const expired = vi.fn();
+    setSessionExpiredHandler(expired);
+    server.use(
+      http.post(`${API}/auth/login`, () =>
+        HttpResponse.json(
+          { statusCode: 401, code: 'UNAUTHENTICATED', message: 'E-mail ou senha incorretos.' },
+          { status: 401 },
+        ),
+      ),
+      http.post(`${API}/auth/refresh`, () => {
+        refreshes += 1;
+        return unauthenticated();
+      }),
+    );
+    await expect(
+      apiRequest('/auth/login', { method: 'POST', body: { email: 'a@b.co', password: 'x' } }),
+    ).rejects.toMatchObject({ message: 'E-mail ou senha incorretos.' });
+    expect(refreshes).toBe(0);
+    expect(expired).not.toHaveBeenCalled();
   });
 });

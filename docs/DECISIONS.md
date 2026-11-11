@@ -159,6 +159,15 @@ O app pode ficar público sem expor a chave do Gemini nem a cota gratuita.
 - **Chave nunca exposta:** teste e2e com um provedor cujo erro **contém** a chave (como um fornecedor que ecoa a URL) verifica respostas e logs; `pnpm check:secrets` varre o bundle do front, o build da API e os arquivos versionados por chave no formato do Google e pelos valores reais dos segredos configurados.
 - **Limitações:** a demo é uma conta **compartilhada** (visitantes veem as alterações uns dos outros até o reset); limites em banco/memória por instância; sem convite, o cadastro fechado só admite contas criadas manualmente.
 
+## ADR-025 — Cookies first-party: o front faz proxy de `/api/*` para a API
+
+- **Problema:** em produção o front e a API ficam em domínios diferentes. Cookies de sessão definidos pela API seriam de terceiros para o navegador (bloqueados por padrão, ou exigindo `SameSite=None` + CORS com credenciais, o que enfraquece a defesa contra CSRF).
+- **Decisão:** o navegador só fala com a origem do front. Um _route handler_ (`apps/web/src/app/api/[...path]/route.ts`) encaminha `/api/*` para `API_INTERNAL_URL`, **lido em runtime** (a mesma imagem serve qualquer ambiente; `rewrites()` do Next seriam fixados no build). Ele repassa só o necessário (`content-type`, `accept`, `cookie`, `x-forwarded-for`), devolve cada `Set-Cookie` separado, não segue redirects, impede caminhos que saiam de `/api` e responde 502 no formato de erro da API (sem vazar o endereço interno) se a API cair. Os cookies continuam `httpOnly; Secure; SameSite=Lax`, agora first-party, e o CORS deixa de ser necessário para o navegador.
+- **IP do cliente:** o proxy repassa `X-Forwarded-For`; a API precisa de `TRUST_PROXY=1` para limitar login/cadastro por IP real (o compose já define). Com `TRUST_PROXY` errado, todos os visitantes parecem o mesmo IP.
+- **Páginas:** `proxy.ts` (o antigo _middleware_ no Next 16) manda para `/login?next=...` quem não tem cookie de sessão e tira do login quem tem. Ele só checa se o cookie **existe**: a autoridade é a API (401). O cliente HTTP, ao receber 401 fora de `/auth/*`, faz **um** refresh compartilhado entre requisições paralelas (o refresh token rotaciona e só vale uma vez) e repete a requisição; se ainda falhar, limpa o cache e vai para o login. `?next=` só aceita caminhos do mesmo site.
+- **Custo:** um salto a mais por requisição (front → API). Em testes locais a latência adicional é de poucos milissegundos; em deploy gratuito soma-se a latência entre as plataformas.
+- **Não verificado:** o comportamento dos cookies entre domínios reais (Vercel → Render) só poderá ser confirmado no deploy.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).

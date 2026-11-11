@@ -38,6 +38,25 @@ interface RequestOptions<TSchema extends z.ZodType | undefined> {
 
 type Result<TSchema> = TSchema extends z.ZodType ? z.output<TSchema> : void;
 
+let refreshInFlight: Promise<boolean> | null = null;
+let onSessionExpired: (() => void) | null = null;
+
+/** Called when a request is still 401 after a refresh: the app leaves for the login screen. */
+export function setSessionExpiredHandler(handler: (() => void) | null): void {
+  onSessionExpired = handler;
+}
+
+/** One refresh at a time: parallel 401s share it (the refresh token rotates, it can be used once). */
+function refreshSession(): Promise<boolean> {
+  refreshInFlight ??= fetch(`${env.apiUrl}/auth/refresh`, { method: 'POST' })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
 /**
  * The single HTTP entry point of the app. It serialises JSON, validates the
  * response with a shared zod schema and normalises every failure (network,
@@ -49,14 +68,23 @@ export async function apiRequest<TSchema extends z.ZodType | undefined = undefin
 ): Promise<Result<TSchema>> {
   const { method = 'GET', body, schema, signal } = options;
 
-  let response: Response;
-  try {
-    response = await fetch(`${env.apiUrl}${path}`, {
+  const send = () =>
+    fetch(`${env.apiUrl}${path}`, {
       method,
       signal,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+
+  let response: Response;
+  try {
+    response = await send();
+    // The access token lasts minutes: on 401, rotate the session once and replay the request.
+    // (Only for non-auth routes; a 401 from /auth/login means "wrong password", not "expired".)
+    if (response.status === 401 && !path.startsWith('/auth/')) {
+      if (await refreshSession()) response = await send();
+      if (response.status === 401) onSessionExpired?.();
+    }
   } catch (error) {
     // A cancelled request (e.g. a superseded query) is not a failure to report.
     if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;

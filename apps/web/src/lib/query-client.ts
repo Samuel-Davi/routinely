@@ -23,6 +23,10 @@ export const queryKeys = {
   commitments: ['fixed-commitments'] as const,
   tasks: ['tasks'] as const,
   aiStatus: ['ai-status'] as const,
+  auth: {
+    me: ['auth', 'me'] as const,
+    config: ['auth', 'config'] as const,
+  },
   routines: {
     all: ['routines'] as const,
     active: ['routines', 'active'] as const,

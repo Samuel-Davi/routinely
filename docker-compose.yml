@@ -86,7 +86,8 @@ services:
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
-      TRUST_PROXY: ${TRUST_PROXY:-0}
+      # The web container is the one proxy in front of the API (client IP for the rate limit).
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     ports:
       - '${API_PORT:-3001}:3001'
     networks:
@@ -98,9 +99,13 @@ services:
       dockerfile: apps/web/Dockerfile
       target: prod
       args:
-        # Inlined into the browser bundle at build time: rebuild after changing it.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        # Inlined into the browser bundle at build time. Leave empty: the browser calls the web
+        # origin (`/api/*`), which proxies to the API, so the login cookies stay first-party.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
         NEXT_PUBLIC_DEFAULT_TIMEZONE: ${NEXT_PUBLIC_DEFAULT_TIMEZONE:-America/Manaus}
+    environment:
+      # Read at request time by the /api proxy (apps/web/src/lib/api-proxy.ts).
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:3001}
     restart: unless-stopped
     depends_on:
       api:

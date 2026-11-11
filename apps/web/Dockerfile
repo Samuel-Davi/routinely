@@ -30,7 +30,8 @@ CMD ["pnpm", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
 
 # ─── build: NEXT_PUBLIC_* values are inlined into the bundle here ─────────────
 FROM deps AS build
-ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+# Empty (default) = same-origin `/api`, proxied to the API at runtime (API_INTERNAL_URL).
+ARG NEXT_PUBLIC_API_URL=
 ARG NEXT_PUBLIC_DEFAULT_TIMEZONE=America/Manaus
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_DEFAULT_TIMEZONE=$NEXT_PUBLIC_DEFAULT_TIMEZONE

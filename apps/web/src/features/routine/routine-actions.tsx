@@ -9,6 +9,8 @@ import {
 import { useState } from 'react';
 import { Banner, Button, Sheet, Textarea } from '@/components/ui';
 import { formatWeekRange } from '@/features/calendar/layout';
+import { AiPrivacyNotice } from '@/features/auth/ai-privacy-notice';
+import { useMe } from '@/features/auth/api';
 import { selectWeekDates, selectWeekStart } from '@/lib/store/calendar-slice';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { panelClosed, panelOpened, selectPanel } from '@/lib/store/ui-slice';
@@ -71,6 +73,7 @@ function GenerateRoutineSheet({
   const weekStart = useAppSelector(selectWeekStart);
   const weekDates = useAppSelector(selectWeekDates);
   const ai = useAiStatus();
+  const me = useMe();
   const [untilLastDeadline, setUntilLastDeadline] = useState(false);
   const [instruction, setInstruction] = useState('');
   const close = () => dispatch(panelClosed());
@@ -144,7 +147,15 @@ function GenerateRoutineSheet({
           error={error}
           hint={`${words}/${QUICK_INSTRUCTION_MAX_WORDS} palavras · ${instruction.trim().length}/${QUICK_INSTRUCTION_MAX_CHARS} caracteres. É só uma preferência: as regras e os prazos continuam valendo.`}
         />
-        {ai.data && !ai.data.configured ? (
+        {me.data?.isDemo ? (
+          <Banner tone="info" title="Modo demo, sem IA">
+            A conta demo usa só o planejador determinístico: nada é enviado a nenhuma IA.
+          </Banner>
+        ) : ai.data?.configured ? (
+          // Text typed here (the quick instruction) and the task data go to the AI.
+          <AiPrivacyNotice />
+        ) : null}
+        {!me.data?.isDemo && ai.data && !ai.data.configured ? (
           <Banner tone="warning" title="IA não configurada">
             Sem uma chave de API, a rotina é montada por um algoritmo determinístico, sem a IA, e a
             instrução rápida é ignorada.

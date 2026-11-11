@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { UserMenu } from '@/features/auth/user-menu';
 import { TabBarLinks, TopNavLinks } from './nav-links';
 
 /**
@@ -26,6 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="hidden md:block">
             <TopNavLinks />
           </div>
+          <UserMenu />
         </nav>
       </header>
       <main
