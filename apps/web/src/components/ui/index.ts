@@ -6,3 +6,4 @@ export * from './segmented-control';
 export * from './sheet';
 export * from './spinner';
 export * from './toast';
+export * from './confirm-sheet';
