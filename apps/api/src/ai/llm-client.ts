@@ -1,12 +1,14 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import {
   LLM_PROVIDER,
   LlmError,
   isLlmError,
   type LlmProvider,
+  type ModelResolutionReport,
   type ModelTier,
   type StructuredInput,
+  type TokenUsage,
 } from './llm-provider';
 
 export interface LlmClientTiming {
@@ -34,14 +36,30 @@ export function backoffDelay(attempt: number, baseMs: number, random: number): n
  *    the model what was wrong; a second failure surfaces as a typed `LlmError`.
  */
 @Injectable()
-export class LlmClient {
+export class LlmClient implements OnApplicationBootstrap {
   private readonly logger = new Logger(LlmClient.name);
+  /** Result of the boot-time model check (empty when the provider has no catalogue). */
+  modelReport: ModelResolutionReport = { available: [], warnings: [] };
 
   constructor(
     @Inject(LLM_PROVIDER) private readonly provider: LlmProvider,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     @Inject(LLM_TIMING) private readonly timing: LlmClientTiming,
   ) {}
+
+  /** Validates the configured models against the vendor's list. Never blocks or fails the boot. */
+  async onApplicationBootstrap(): Promise<void> {
+    if (!this.provider.resolveModels || !this.provider.isConfigured()) return;
+    try {
+      this.modelReport = await this.provider.resolveModels();
+    } catch {
+      this.modelReport = { available: [], warnings: ['Falha ao validar os modelos da IA.'] };
+    }
+    for (const warning of this.modelReport.warnings) this.logger.warn(warning);
+    this.logger.log(
+      `AI models: default=${this.provider.modelFor('default')} retry=${this.provider.modelFor('retry')} (${this.modelReport.available.length} available)`,
+    );
+  }
 
   get providerName(): string {
     return this.provider.name;
@@ -76,9 +94,18 @@ export class LlmClient {
     for (let attempt = 1; ; attempt += 1) {
       const startedAt = Date.now();
       try {
-        const result = await this.provider.generateStructured(input);
+        let usage: TokenUsage | undefined;
+        const result = await this.provider.generateStructured({
+          ...input,
+          onUsage: (reported) => {
+            usage = reported;
+            input.onUsage?.(reported);
+          },
+        });
+        // Only counts and timing are logged, never prompt or user content.
+        const tokens = usage ? `, in=${usage.inputTokens} out=${usage.outputTokens} tokens` : '';
         this.logger.log(
-          `${input.name}: ok (${this.provider.name}/${this.provider.modelFor(input.tier ?? 'default')}, attempt ${attempt}, ${Date.now() - startedAt}ms)`,
+          `${input.name}: ok (${this.provider.name}/${this.provider.modelFor(input.tier ?? 'default')}, attempt ${attempt}, ${Date.now() - startedAt}ms${tokens})`,
         );
         return result;
       } catch (error) {

@@ -4,6 +4,8 @@ import {
   activeRoutineSchema,
   completeBlockSchema,
   generateRoutineInputSchema,
+  replanInputSchema,
+  type ReplanInput,
   lockBlockSchema,
   moveBlockSchema,
   replanSuggestionSchema,
@@ -71,9 +73,12 @@ export class RoutinesController {
   @HttpCode(202)
   @UseGuards(AiThrottlerGuard)
   @ApiOperation({ summary: 'Regenera apenas o futuro, preservando blocos travados e concluídos' })
+  @ApiZodBody(replanInputSchema)
   @ApiZodResponse(routineSummarySchema, 202)
-  replan(): Promise<RoutineSummary> {
-    return this.service.replan();
+  replan(
+    @Body(new ZodValidationPipe(replanInputSchema)) body: ReplanInput,
+  ): Promise<RoutineSummary> {
+    return this.service.replan(body.instruction);
   }
 
   @Patch('blocks/:blockId')

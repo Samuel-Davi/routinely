@@ -115,4 +115,46 @@ describe('LlmClient', () => {
     provider.configured = false;
     expect(client.isConfigured()).toBe(false);
   });
+
+  it('logs token counts but never the prompt content', async () => {
+    const { client, provider } = setup();
+    const logger = jest.spyOn(client['logger'], 'log').mockImplementation(() => undefined);
+    const generate = jest.spyOn(provider, 'generateStructured').mockImplementation(async (call) => {
+      call.onUsage?.({ inputTokens: 1200, outputTokens: 340 });
+      return valid as never;
+    });
+    const onUsage = jest.fn();
+    await client.generateStructured({ ...input, prompt: 'SEGREDO do usuário', onUsage });
+    expect(generate).toHaveBeenCalled();
+    expect(onUsage).toHaveBeenCalledWith({ inputTokens: 1200, outputTokens: 340 });
+    const message = String(logger.mock.calls[0]?.[0]);
+    expect(message).toContain('in=1200 out=340 tokens');
+    expect(message).not.toContain('SEGREDO');
+  });
+
+  describe('boot-time model check', () => {
+    it('stores the provider report and warns about replaced models', async () => {
+      const { client, provider } = setup();
+      const resolveModels = jest
+        .fn()
+        .mockResolvedValue({ available: ['gemini-3.8-flash'], warnings: ['GEMINI_MODEL trocado'] });
+      Object.assign(provider, { resolveModels });
+      const warn = jest.spyOn(client['logger'], 'warn').mockImplementation(() => undefined);
+      jest.spyOn(client['logger'], 'log').mockImplementation(() => undefined);
+      await client.onApplicationBootstrap();
+      expect(client.modelReport.warnings).toEqual(['GEMINI_MODEL trocado']);
+      expect(warn).toHaveBeenCalledWith('GEMINI_MODEL trocado');
+    });
+
+    it('never fails the boot when listing models throws, and skips providers without a catalogue', async () => {
+      const { client, provider } = setup();
+      jest.spyOn(client['logger'], 'warn').mockImplementation(() => undefined);
+      jest.spyOn(client['logger'], 'log').mockImplementation(() => undefined);
+      await client.onApplicationBootstrap();
+      expect(client.modelReport.warnings).toEqual([]);
+      Object.assign(provider, { resolveModels: jest.fn().mockRejectedValue(new Error('boom')) });
+      await expect(client.onApplicationBootstrap()).resolves.toBeUndefined();
+      expect(client.modelReport.warnings).toEqual(['Falha ao validar os modelos da IA.']);
+    });
+  });
 });

@@ -13,4 +13,4 @@ Blocos travados (já ocupam a agenda, não os repita):
 Tarefas:
 {{tasks}}
 
-Monte a rotina.
+{{instructionBlock}}Monte a rotina.

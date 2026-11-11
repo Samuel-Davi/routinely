@@ -6,7 +6,7 @@ export type Panel =
   | { type: 'task-form'; taskId?: string }
   | { type: 'commitment-form'; commitmentId?: string }
   | { type: 'block-details'; blockId: string }
-  | { type: 'generate-routine' }
+  | { type: 'generate-routine'; mode?: 'replan' }
   | { type: 'calendar-filters' };
 
 export interface UiState {

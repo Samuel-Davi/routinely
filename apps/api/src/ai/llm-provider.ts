@@ -11,6 +11,13 @@ export interface StructuredInput<T> {
   /** The output is constrained to, and validated against, this schema. */
   schema: z.ZodType<T>;
   tier?: ModelTier;
+  /** Called by the provider with the token counts the vendor reported, when it reports them. */
+  onUsage?: (usage: TokenUsage) => void;
+}
+
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
 }
 
 /**
@@ -25,6 +32,17 @@ export interface LlmProvider {
   /** Model id used for a tier, for status/log output. */
   modelFor(tier: ModelTier): string;
   generateStructured<T>(input: StructuredInput<T>): Promise<T>;
+  /**
+   * Checks the configured models against the vendor's catalogue and falls back to an existing
+   * one when they are missing. Optional: providers without a catalogue skip it.
+   */
+  resolveModels?(): Promise<ModelResolutionReport>;
+}
+
+export interface ModelResolutionReport {
+  /** Model ids available for this credential. */
+  available: string[];
+  warnings: string[];
 }
 
 export const LLM_PROVIDER = Symbol('LLM_PROVIDER');

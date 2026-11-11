@@ -1,4 +1,10 @@
-import { HttpStatus, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
+import {
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+} from '@nestjs/common';
 import {
   checkPlacement,
   fromLocalDateTime,
@@ -15,18 +21,21 @@ import {
   type RoutineTrigger,
   type UnscheduledTask,
 } from '@routinely/shared';
-import { RoutineProposer } from '../ai/generate-routine';
+import { RoutineProposer, type RoutinePlanningInput } from '../ai/generate-routine';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { CurrentUser } from '../common/current-user';
+import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import { FixedCommitmentsRepository } from '../fixed-commitments/fixed-commitments.repository';
 import { PreferencesService } from '../preferences/preferences.service';
 import { TasksRepository } from '../tasks/tasks.repository';
 import { UsersRepository } from '../users/users.repository';
 import {
+  compareTasks,
   computeFreeWindows,
   diffBlocks,
   planRoutine,
+  scheduleHeuristic,
   type EngineBlock,
   type EngineTask,
   type PlanningContext,
@@ -55,6 +64,7 @@ export class RoutinesService implements OnApplicationBootstrap {
     private readonly proposer: RoutineProposer,
     private readonly currentUser: CurrentUser,
     private readonly clock: Clock,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -128,11 +138,11 @@ export class RoutinesService implements OnApplicationBootstrap {
         'Não é possível gerar rotina para uma semana que já passou.',
       );
     }
-    return this.startJob('GENERATE', range);
+    return this.startJob('GENERATE', range, input.instruction);
   }
 
   /** Regenerates only the future of the active routine, keeping locked and completed blocks. */
-  async replan(): Promise<RoutineSummary> {
+  async replan(instruction?: string): Promise<RoutineSummary> {
     const prefs = await this.preferences.get();
     const today = utcToZonedParts(this.clock.now(), prefs.timezone).date;
     const active = await this.repository.findActive(this.currentUser.id);
@@ -141,27 +151,38 @@ export class RoutinesService implements OnApplicationBootstrap {
       deadlines: [],
       timezone: prefs.timezone,
     });
-    if (!active) return this.startJob('GENERATE', currentWeek);
+    if (!active) return this.startJob('GENERATE', currentWeek, instruction);
     const range: PlanningRange = {
       rangeStart:
         active.rangeStart < currentWeek.rangeStart ? active.rangeStart : currentWeek.rangeStart,
       rangeEnd: active.rangeEnd > currentWeek.rangeEnd ? active.rangeEnd : currentWeek.rangeEnd,
     };
-    return this.startJob('REPLAN', range);
+    return this.startJob('REPLAN', range, instruction);
   }
 
-  private async startJob(trigger: RoutineTrigger, range: PlanningRange): Promise<RoutineSummary> {
+  private async startJob(
+    trigger: RoutineTrigger,
+    range: PlanningRange,
+    instruction?: string,
+  ): Promise<RoutineSummary> {
     const userId = this.currentUser.id;
     if (await this.repository.findPending(userId)) {
       throw AppError.conflict('GENERATION_IN_PROGRESS', 'Já existe uma rotina sendo gerada.');
     }
     const routine = await this.repository.createPending(userId, { trigger, ...range });
-    const job = this.runJob(userId, routine.id, range).finally(() => this.jobs.delete(job));
+    const job = this.runJob(userId, routine.id, range, instruction).finally(() =>
+      this.jobs.delete(job),
+    );
     this.jobs.add(job);
     return toRoutineSummaryDto(routine);
   }
 
-  private async runJob(userId: string, routineId: string, range: PlanningRange): Promise<void> {
+  private async runJob(
+    userId: string,
+    routineId: string,
+    range: PlanningRange,
+    instruction?: string,
+  ): Promise<void> {
     try {
       const [prefs, commitments, allTasks, previous] = await Promise.all([
         this.preferences.get(),
@@ -195,13 +216,26 @@ export class RoutinesService implements OnApplicationBootstrap {
       const context: PlanningContext = { prefs, commitments, ...range, now, fixedBlocks };
       const engineTasks = toEngineTasks(estimated, carried);
 
-      const plan = await planRoutine({
-        tasks: engineTasks,
+      const useAi = this.proposer.isAvailable();
+      const buildInput = this.inputBuilder(context, titles, commitmentOfTask, instruction);
+      const { aiTasks, overflow } = useAi
+        ? this.fitToBudget(engineTasks, buildInput)
+        : { aiTasks: engineTasks, overflow: [] };
+      const planned = await planRoutine({
+        tasks: aiTasks,
         context,
-        propose: this.proposer.isAvailable()
-          ? this.buildPropose(context, titles, commitmentOfTask)
-          : undefined,
+        propose: useAi ? this.buildPropose(context, buildInput) : undefined,
       });
+      // Tasks that did not fit the AI input budget are placed by the heuristic around the AI's blocks.
+      const rest =
+        overflow.length > 0 ? scheduleHeuristic(overflow, context, planned.blocks) : null;
+      const plan = rest
+        ? {
+            ...planned,
+            blocks: [...planned.blocks, ...rest.blocks].sort((a, b) => a.start - b.start),
+            unscheduled: [...planned.unscheduled, ...rest.unscheduled],
+          }
+        : planned;
 
       const blocks: NewBlock[] = [
         ...carried.map((block) => ({
@@ -252,44 +286,75 @@ export class RoutinesService implements OnApplicationBootstrap {
     }
   }
 
-  /** Adapts the engine's request to the LLM use case (local time strings in, instants out). */
-  private buildPropose(
+  /** Keeps the most urgent tasks that fit `LLM_MAX_INPUT_TOKENS`; the rest overflows to the heuristic. */
+  private fitToBudget(
+    tasks: readonly EngineTask[],
+    buildInput: (tasks: readonly EngineTask[]) => RoutinePlanningInput,
+  ): { aiTasks: EngineTask[]; overflow: EngineTask[] } {
+    const sorted = [...tasks].sort(compareTasks);
+    let count = sorted.length;
+    while (
+      count > 1 &&
+      this.proposer.estimateInputTokens(buildInput(sorted.slice(0, count))) >
+        this.config.LLM_MAX_INPUT_TOKENS
+    ) {
+      count -= 1;
+    }
+    if (count < sorted.length) {
+      this.logger.warn(
+        `AI input budget (${this.config.LLM_MAX_INPUT_TOKENS} tokens): ${sorted.length - count} task(s) left to the heuristic`,
+      );
+    }
+    return { aiTasks: sorted.slice(0, count), overflow: sorted.slice(count) };
+  }
+
+  /** Builds the (compact) LLM request: local time strings in, short aliases and no prior rationale. */
+  private inputBuilder(
     context: PlanningContext,
     titles: ReadonlyMap<string, string>,
     commitmentOfTask: ReadonlyMap<string, string>,
-  ): ProposeFn {
+    instruction?: string,
+  ): (tasks: readonly EngineTask[]) => RoutinePlanningInput {
     const { prefs } = context;
     const local = (instant: number) => toLocalDateTime(instant, prefs.timezone);
+    return (tasks) => ({
+      timezone: prefs.timezone,
+      now: local(context.now),
+      maxFocusBlockMinutes: prefs.maxFocusBlockMinutes,
+      minBreakMinutes: prefs.minBreakMinutes,
+      freeWindows: computeFreeWindows(context).map((window) => ({
+        start: local(window.start),
+        end: local(window.end),
+      })),
+      tasks: tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        priority: task.priority,
+        deadline: local(task.deadline),
+        complexity: task.complexity,
+        minutes: task.minutes,
+        splittable: task.splittable,
+        commitment: commitmentOfTask.get(task.id),
+      })),
+      lockedBlocks: context.fixedBlocks
+        .filter((block) => block.end > context.now)
+        .map((block) => ({
+          title: titles.get(block.taskId) ?? 'Tarefa',
+          start: local(block.start),
+          end: local(block.end),
+        })),
+      instruction,
+    });
+  }
+
+  /** Adapts the engine's request to the LLM use case (instants out). */
+  private buildPropose(
+    context: PlanningContext,
+    buildInput: (tasks: readonly EngineTask[]) => RoutinePlanningInput,
+  ): ProposeFn {
+    const { prefs } = context;
     return async ({ tasks, tier, feedback }) => {
-      const allocations = await this.proposer.propose({
-        timezone: prefs.timezone,
-        now: local(context.now),
-        maxFocusBlockMinutes: prefs.maxFocusBlockMinutes,
-        minBreakMinutes: prefs.minBreakMinutes,
-        freeWindows: computeFreeWindows(context).map((window) => ({
-          start: local(window.start),
-          end: local(window.end),
-        })),
-        tasks: tasks.map((task: EngineTask) => ({
-          id: task.id,
-          title: task.title,
-          priority: task.priority,
-          deadline: local(task.deadline),
-          complexity: task.complexity,
-          minutes: task.minutes,
-          splittable: task.splittable,
-          commitment: commitmentOfTask.get(task.id),
-        })),
-        lockedBlocks: context.fixedBlocks
-          .filter((block) => block.end > context.now)
-          .map((block) => ({
-            title: titles.get(block.taskId) ?? 'Tarefa',
-            start: local(block.start),
-            end: local(block.end),
-          })),
-        feedback,
-        tier,
-      });
+      const allocations = await this.proposer.propose({ ...buildInput(tasks), feedback, tier });
       return allocations.map((allocation) => ({
         taskId: allocation.taskId,
         start: fromLocalDateTime(allocation.start, prefs.timezone),

@@ -77,10 +77,14 @@ export function useStartRoutineJob() {
   const dispatch = useAppDispatch();
   const toast = useToast();
   return useMutation({
-    mutationFn: (request: { kind: 'generate'; input: GenerateRoutineInput } | { kind: 'replan' }) =>
+    mutationFn: (
+      request:
+        | { kind: 'generate'; input: GenerateRoutineInput }
+        | { kind: 'replan'; instruction?: string },
+    ) =>
       apiRequest(request.kind === 'generate' ? '/routines/generate' : '/routines/replan', {
         method: 'POST',
-        body: request.kind === 'generate' ? request.input : undefined,
+        body: request.kind === 'generate' ? request.input : { instruction: request.instruction },
         schema: routineSummarySchema,
       }),
     onSuccess: (routine) => dispatch(routineJobStarted(routine.id)),

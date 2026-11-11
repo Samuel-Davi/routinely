@@ -1,7 +1,14 @@
 import { ApiError, GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-import { LlmError, type LlmProvider, type ModelTier, type StructuredInput } from '../llm-provider';
+import {
+  LlmError,
+  type LlmProvider,
+  type ModelResolutionReport,
+  type ModelTier,
+  type StructuredInput,
+} from '../llm-provider';
 import { parseStructured } from '../parse-structured';
+import { resolveModels, stripModelPrefix } from './model-discovery';
 
 export interface GeminiOptions {
   apiKey?: string;
@@ -14,11 +21,15 @@ export interface GeminiOptions {
 /** The slice of the SDK this provider uses; lets tests inject a fake client. */
 export interface GeminiClient {
   models: {
+    list(): Promise<AsyncIterable<{ name?: string; supportedActions?: string[] }>>;
     generateContent(params: {
       model: string;
       contents: string;
       config: Record<string, unknown>;
-    }): Promise<{ text?: string }>;
+    }): Promise<{
+      text?: string;
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+    }>;
   };
 }
 
@@ -72,10 +83,40 @@ export class GeminiProvider implements LlmProvider {
         },
       });
       text = response.text;
+      if (response.usageMetadata) {
+        input.onUsage?.({
+          inputTokens: response.usageMetadata.promptTokenCount ?? 0,
+          outputTokens: response.usageMetadata.candidatesTokenCount ?? 0,
+        });
+      }
     } catch (error) {
       throw toLlmError(error);
     }
     return parseStructured(text, input.schema);
+  }
+
+  /** Lists the models available for the key and swaps missing configured ones for existing ones. */
+  async resolveModels(): Promise<ModelResolutionReport> {
+    if (!this.isConfigured()) return { available: [], warnings: [] };
+    const available: string[] = [];
+    try {
+      for await (const model of await this.getClient().models.list()) {
+        const supported = model.supportedActions;
+        if (model.name && (!supported || supported.includes('generateContent'))) {
+          available.push(stripModelPrefix(model.name));
+        }
+      }
+    } catch (error) {
+      const cause = toLlmError(error);
+      return {
+        available: [],
+        warnings: [`Não foi possível listar os modelos (${cause.message}).`],
+      };
+    }
+    const resolved = resolveModels(this.options, available);
+    this.options.model = resolved.model;
+    this.options.retryModel = resolved.retryModel;
+    return { available, warnings: resolved.warnings };
   }
 
   private getClient(): GeminiClient {

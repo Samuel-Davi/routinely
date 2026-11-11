@@ -214,8 +214,71 @@ describe('WeekScreen', () => {
     expect(store.getState().ui.dismissedSuggestionFor).toBe(world.routine?.id);
 
     await userEvent.click(screen.getByRole('button', { name: 'Replanejar' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Replanejar' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Replanejar' }));
     expect(await screen.findByText('Rotina replanejada')).toBeInTheDocument();
     expect(replans).toBe(1);
+  });
+
+  it('sends a trimmed quick instruction, counts words and blocks an oversized one', async () => {
+    mockApi({ routine: null });
+    let body: unknown;
+    server.use(
+      http.post(`${API}/routines/generate`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(
+          { ...makeRoutine({ id: uuid(960), blocks: [] }), status: 'PENDING', blocks: undefined },
+          { status: 202 },
+        );
+      }),
+    );
+    renderWithProviders(<WeekScreen />);
+    await userEvent.click(
+      (await screen.findAllByRole('button', { name: 'Gerar rotina' }))[0] as HTMLElement,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Gerar rotina' });
+    const field = within(dialog).getByLabelText(/Instrução rápida/);
+    const generate = within(dialog).getByRole('button', { name: 'Gerar' });
+
+    await userEvent.type(field, '  priorize Web Academy  ');
+    expect(within(dialog).getByText(/3\/40 palavras/)).toBeInTheDocument();
+
+    fireEvent.change(field, { target: { value: Array.from({ length: 41 }, () => 'a').join(' ') } });
+    expect(await within(dialog).findByText('Máximo de 40 palavras')).toBeInTheDocument();
+    expect(generate).toBeDisabled();
+
+    fireEvent.change(field, { target: { value: '  priorize Web Academy  ' } });
+    expect(generate).toBeEnabled();
+    await userEvent.click(generate);
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body).toEqual({
+      weekStart: '2026-11-09',
+      untilLastDeadline: false,
+      instruction: 'priorize Web Academy',
+    });
+  });
+
+  it('omits the instruction when the field is empty', async () => {
+    mockApi({ routine: null });
+    let body: unknown;
+    server.use(
+      http.post(`${API}/routines/generate`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(
+          { ...makeRoutine({ id: uuid(961), blocks: [] }), status: 'PENDING', blocks: undefined },
+          { status: 202 },
+        );
+      }),
+    );
+    renderWithProviders(<WeekScreen />);
+    await userEvent.click(
+      (await screen.findAllByRole('button', { name: 'Gerar rotina' }))[0] as HTMLElement,
+    );
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Gerar' }),
+    );
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body).not.toHaveProperty('instruction');
   });
 
   it('opens block details, completes the block and locks it', async () => {

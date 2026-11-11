@@ -10,6 +10,7 @@ import {
   moveBlockSchema,
   preferencesSchema,
   updateTaskSchema,
+  quickInstructionSchema,
 } from '../index';
 
 const commitment = {
@@ -134,5 +135,37 @@ describe('AI output schemas', () => {
   it('converts to JSON Schema for the LLM', () => {
     const schema = z.toJSONSchema(generateRoutineOutputSchema) as { properties: object };
     expect(Object.keys(schema.properties)).toEqual(['allocations']);
+  });
+});
+
+describe('quickInstructionSchema', () => {
+  it('accepts empty text and a normal instruction', () => {
+    expect(quickInstructionSchema.parse('')).toBe('');
+    expect(quickInstructionSchema.parse('  priorize   Web Academy ')).toBe('priorize Web Academy');
+  });
+
+  it('strips control characters and markup', () => {
+    expect(quickInstructionSchema.parse('sem trabalho\u0000 no <b>domingo</b>\n```x```')).toBe(
+      'sem trabalho no bdomingo/b x',
+    );
+    expect(quickInstructionSchema.parse('# manhãs livres {{x}} [y]')).toBe('manhãs livres x y');
+  });
+
+  it('rejects more than 40 words', () => {
+    const forty = Array.from({ length: 40 }, () => 'a').join(' ');
+    expect(quickInstructionSchema.safeParse(forty).success).toBe(true);
+    expect(quickInstructionSchema.safeParse(`${forty} a`).success).toBe(false);
+  });
+
+  it('rejects more than 280 characters even with few words', () => {
+    expect(quickInstructionSchema.safeParse('a'.repeat(280)).success).toBe(true);
+    expect(quickInstructionSchema.safeParse('a'.repeat(281)).success).toBe(false);
+  });
+
+  it('is optional in the generate input and rejects oversized raw text', () => {
+    expect(generateRoutineInputSchema.parse({}).instruction).toBeUndefined();
+    expect(generateRoutineInputSchema.safeParse({ instruction: 'x'.repeat(5000) }).success).toBe(
+      false,
+    );
   });
 });

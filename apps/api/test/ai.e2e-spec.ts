@@ -47,6 +47,7 @@ describe('AI estimation (e2e, mocked LLM)', () => {
       configured: true,
       model: 'fake-default',
       retryModel: 'fake-retry',
+      modelWarnings: [],
     });
   });
 

@@ -40,6 +40,8 @@ export const envSchema = z.object({
   OLLAMA_MODEL: z.string().default('llama3.1'),
   LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
   LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).default(8192),
+  /** Input budget for the routine prompt; the least urgent tasks beyond it go to the heuristic. */
+  LLM_MAX_INPUT_TOKENS: z.coerce.number().int().min(500).default(12_000),
   LLM_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(3),
   LLM_BACKOFF_BASE_MS: z.coerce.number().int().min(0).default(1000),
   AI_RATE_LIMIT_TTL_MS: z.coerce.number().int().min(1000).default(60_000),

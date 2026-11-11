@@ -8,6 +8,8 @@ export interface AiStatus {
   configured: boolean;
   model: string;
   retryModel: string;
+  /** Problems found when checking the configured models at boot (empty when fine). */
+  modelWarnings: string[];
 }
 
 @ApiTags('ai')
@@ -24,6 +26,7 @@ export class AiController {
       configured: this.llm.isConfigured(),
       model: this.llm.modelFor('default'),
       retryModel: this.llm.modelFor('retry'),
+      modelWarnings: this.llm.modelReport.warnings,
     };
   }
 }

@@ -77,13 +77,54 @@ export type ActiveRoutine = z.infer<typeof activeRoutineSchema>;
 export const lockBlockSchema = z.object({ locked: z.boolean() });
 export type LockBlockInput = z.infer<typeof lockBlockSchema>;
 
+export const QUICK_INSTRUCTION_MAX_WORDS = 40;
+export const QUICK_INSTRUCTION_MAX_CHARS = 280;
+
+/** Removes control characters and markup-ish symbols, and collapses whitespace. */
+export function sanitizeQuickInstruction(text: string): string {
+  return text
+    .replace(/\p{Cc}/gu, ' ')
+    .replace(/[<>{}[\]`#*|\\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+}
+
+/**
+ * Optional free-text preference for one generation (e.g. "sem trabalho no domingo").
+ * It is sanitized, then limited to 40 words and 280 characters. Empty is allowed.
+ * Downstream it is untrusted data: it can never override rules or the output format.
+ */
+export const quickInstructionSchema = z
+  .string()
+  .max(2000, 'Instrução longa demais')
+  .transform(sanitizeQuickInstruction)
+  .pipe(
+    z
+      .string()
+      .max(QUICK_INSTRUCTION_MAX_CHARS, `Máximo de ${QUICK_INSTRUCTION_MAX_CHARS} caracteres`)
+      .refine((text) => countWords(text) <= QUICK_INSTRUCTION_MAX_WORDS, {
+        message: `Máximo de ${QUICK_INSTRUCTION_MAX_WORDS} palavras`,
+      }),
+  );
+
 export const generateRoutineInputSchema = z.object({
   /** Any date inside the week to plan; defaults to the current week. */
   weekStart: dateStringSchema.optional(),
   /** Plan up to the latest open deadline (capped at 4 weeks). */
   untilLastDeadline: z.boolean().default(false),
+  instruction: quickInstructionSchema.optional(),
 });
 export type GenerateRoutineInput = z.infer<typeof generateRoutineInputSchema>;
+
+export const replanInputSchema = z
+  .object({ instruction: quickInstructionSchema.optional() })
+  .default({});
+export type ReplanInput = z.infer<typeof replanInputSchema>;
 
 export const moveBlockSchema = z
   .object({ start: isoDateTimeSchema, end: isoDateTimeSchema })

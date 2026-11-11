@@ -18,7 +18,14 @@ const input = {
   schema: estimateTaskOutputSchema,
 };
 
-function fakeClient(result: { text?: string } | Error) {
+function fakeClient(
+  result:
+    | {
+        text?: string;
+        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+      }
+    | Error,
+) {
   const generateContent = jest.fn(async (_params: unknown) => {
     if (result instanceof Error) throw result;
     return result;
@@ -29,6 +36,51 @@ function fakeClient(result: { text?: string } | Error) {
 const apiError = (status: number) => new ApiError({ status, message: `key=test-key-123 failed` });
 
 describe('GeminiProvider', () => {
+  it('reports the token usage the API returned', async () => {
+    const { client } = fakeClient({
+      text: JSON.stringify(valid),
+      usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 120 },
+    });
+    const onUsage = jest.fn();
+    await new GeminiProvider(options, client).generateStructured({ ...input, onUsage });
+    expect(onUsage).toHaveBeenCalledWith({ inputTokens: 900, outputTokens: 120 });
+  });
+
+  it('replaces configured models that do not exist with the newest existing ones', async () => {
+    async function* list() {
+      yield { name: 'models/gemini-3.5-flash-lite', supportedActions: ['generateContent'] };
+      yield { name: 'models/gemini-3.8-flash', supportedActions: ['generateContent'] };
+      yield { name: 'models/text-embedding', supportedActions: ['embedContent'] };
+    }
+    const client = { models: { list: async () => list(), generateContent: jest.fn() } };
+    const provider = new GeminiProvider(
+      { ...options, model: 'gemini-9-flash-lite', retryModel: 'gemini-3.6-flash' },
+      client as unknown as GeminiClient,
+    );
+    const report = await provider.resolveModels();
+    expect(report.available).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+    expect(provider.modelFor('default')).toBe('gemini-3.5-flash-lite');
+    expect(provider.modelFor('retry')).toBe('gemini-3.8-flash');
+    expect(report.warnings).toHaveLength(2);
+    expect(JSON.stringify(report)).not.toContain('test-key-123');
+  });
+
+  it('does not list models without a key, and survives a failing list call', async () => {
+    const list = jest.fn();
+    const noKey = new GeminiProvider({ ...options, apiKey: undefined }, {
+      models: { list },
+    } as unknown as GeminiClient);
+    await expect(noKey.resolveModels()).resolves.toEqual({ available: [], warnings: [] });
+    expect(list).not.toHaveBeenCalled();
+
+    const failing = new GeminiProvider(options, {
+      models: { list: async () => Promise.reject(apiError(503)) },
+    } as unknown as GeminiClient);
+    const report = await failing.resolveModels();
+    expect(report.warnings[0]).toContain('Não foi possível listar');
+    expect(failing.modelFor('default')).toBe('gemini-default');
+  });
+
   it('requests JSON constrained by the schema and validates the answer', async () => {
     const { client, generateContent } = fakeClient({ text: JSON.stringify(valid) });
     const provider = new GeminiProvider(options, client);
