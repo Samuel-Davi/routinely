@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "pnpm --filter @routinely/shared build && pnpm -r --parallel dev",
     "build": "pnpm --filter @routinely/shared build && pnpm -r --filter '!@routinely/shared' build",
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint . && pnpm --filter @routinely/web lint && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "pnpm --filter @routinely/shared build && pnpm -r typecheck",
     "test": "pnpm -r test",

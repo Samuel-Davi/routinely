@@ -1,0 +1,269 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Light is the default; dark follows the system automatically.
+ * Semantic names (canvas, surface, label…) keep components theme-agnostic.
+ */
+:root {
+  color-scheme: light dark;
+
+  --canvas: #f5f5f7;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --fill: rgb(120 120 128 / 0.12);
+  --fill-strong: rgb(120 120 128 / 0.2);
+  --label: #1d1d1f;
+  --label-secondary: #636366;
+  --label-tertiary: #7c7c80;
+  --separator: rgb(60 60 67 / 0.14);
+  --accent: #0066cc;
+  --accent-hover: #0058b0;
+  --accent-text: #0066cc;
+  --on-accent: #ffffff;
+  --success: #1f7a35;
+  --warning: #a34a00;
+  --danger: #c5001a;
+  --scrim: rgb(0 0 0 / 0.32);
+  /* Translucent chrome (nav bars, sheets) */
+  --material: rgb(255 255 255 / 0.72);
+  --material-edge: rgb(255 255 255 / 0.6);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
+  --shadow-float: 0 12px 40px rgb(0 0 0 / 0.16), 0 2px 8px rgb(0 0 0 / 0.08);
+
+  /* Semantic tones: categories and priorities */
+  --tone-blue: #0a6fdb;
+  --tone-green: #1f8f3f;
+  --tone-orange: #d96a00;
+  --tone-purple: #8944ab;
+  --tone-pink: #d6336c;
+  --tone-teal: #0f8a94;
+  --tone-red: #d70015;
+  --tone-gray: #6e6e73;
+
+  --nav-height: 3.5rem;
+  --tabbar-height: 4rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #000000;
+    --surface: #1c1c1e;
+    --surface-raised: #2c2c2e;
+    --fill: rgb(120 120 128 / 0.24);
+    --fill-strong: rgb(120 120 128 / 0.36);
+    --label: #f5f5f7;
+    --label-secondary: #aeaeb2;
+    --label-tertiary: #8e8e93;
+    --separator: rgb(84 84 88 / 0.6);
+    --accent: #0071e3;
+    --accent-hover: #0a7ff5;
+    --accent-text: #4da3ff;
+    --on-accent: #ffffff;
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --danger: #ff6961;
+    --scrim: rgb(0 0 0 / 0.56);
+    --material: rgb(28 28 30 / 0.72);
+    --material-edge: rgb(255 255 255 / 0.08);
+    --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.06);
+    --shadow-float: 0 16px 48px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.08);
+
+    --tone-blue: #409cff;
+    --tone-green: #30d158;
+    --tone-orange: #ff9f0a;
+    --tone-purple: #bf5af2;
+    --tone-pink: #ff5c8a;
+    --tone-teal: #40c8e0;
+    --tone-red: #ff6961;
+    --tone-gray: #98989d;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+  --color-label: var(--label);
+  --color-label-secondary: var(--label-secondary);
+  --color-label-tertiary: var(--label-tertiary);
+  --color-separator: var(--separator);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-on-accent: var(--on-accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-scrim: var(--scrim);
+  --color-tone: var(--tone);
+
+  /* The platform system font ships optical sizing and tuned tracking. */
+  --font-sans:
+    system-ui, -apple-system, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
+  /* One radius scale, used consistently: control → card → sheet */
+  --radius-control: 0.625rem;
+  --radius-card: 1rem;
+  --radius-sheet: 1.375rem;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-float: var(--shadow-float);
+
+  /* Type scale: size, leading and tracking move together */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--letter-spacing: 0.01em;
+  --text-footnote: 0.8125rem;
+  --text-footnote--line-height: 1.125rem;
+  --text-footnote--letter-spacing: 0.005em;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.375rem;
+  --text-body--letter-spacing: 0em;
+  --text-headline: 1.0625rem;
+  --text-headline--line-height: 1.375rem;
+  --text-headline--letter-spacing: -0.01em;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.015em;
+  --text-display: 1.875rem;
+  --text-display--line-height: 2.125rem;
+  --text-display--letter-spacing: -0.022em;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background: var(--canvas);
+    color: var(--label);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+
+  /* One visible, consistent focus ring for keyboard users. */
+  :focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+
+  button,
+  [role='button'],
+  a {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /* Translucent floating chrome: content scrolls underneath. */
+  .material {
+    background: var(--material);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  /* Tinted surface for a semantic tone (set --tone on the element). */
+  .tone-surface {
+    background: color-mix(in srgb, var(--tone) 14%, var(--surface));
+    color: color-mix(in srgb, var(--tone) 58%, var(--label));
+  }
+
+  .tone-solid {
+    background: var(--tone);
+  }
+
+  /* Feedback lives on the press, and it is instant. */
+  .pressable {
+    transition:
+      transform 100ms ease-out,
+      background-color 120ms ease-out,
+      opacity 120ms ease-out;
+  }
+  .pressable:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--fill) 25%, var(--fill-strong) 37%, var(--fill) 63%);
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.4s ease infinite;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Reduced motion: keep feedback, drop movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .pressable:active:not(:disabled) {
+    transform: none;
+    opacity: 0.7;
+  }
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Reduced transparency: solid chrome, no blur. */
+@media (prefers-reduced-transparency: reduce) {
+  .material {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* More contrast: solid chrome and defined edges. */
+@media (prefers-contrast: more) {
+  :root {
+    --separator: color-mix(in srgb, var(--label) 55%, transparent);
+    --label-secondary: var(--label);
+    --label-tertiary: var(--label);
+  }
+  .material {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--label);
+  }
+}
