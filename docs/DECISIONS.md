@@ -149,6 +149,16 @@ Compromissos têm `requiresTravel` (padrão falso) e Ajustes tem `travelMinutes`
 - **Dados existentes:** o usuário de seed vira o primeiro usuário com `claim-owner` (`pnpm --filter @routinely/api claim-owner -- --email ...`), que pede a senha no terminal, sem eco. Nada é perdido.
 - **Limites conhecidos:** o rate limit é por instância (em memória); os refresh tokens expirados são limpos de forma oportunista; sem recuperação de senha nem troca de senha na UI.
 
+## ADR-024 — Modo portfólio: cadastro fechado, conta demo sem IA e tetos de IA
+
+O app pode ficar público sem expor a chave do Gemini nem a cota gratuita.
+
+- **Cadastro desativável:** `REGISTRATION_ENABLED` (padrão `true` em dev, `false` em produção). Fechado, `POST /auth/register` responde `403 REGISTRATION_DISABLED` com mensagem genérica, **antes** da validação do corpo (um _guard_), e a tela de cadastro some (`GET /auth/config`). Sem código de convite no MVP; o dono entra pela conta criada com `claim-owner`.
+- **Conta demo:** `User.isDemo`, criada e restaurada por `pnpm demo:reset` (idempotente; e-mail e senha só em `DEMO_EMAIL`/`DEMO_PASSWORD`, nunca no código) com dados fictícios e uma rotina já gerada. **Nunca chama o Gemini**: a decisão está em um só lugar (`AiQuotaService.acquire` devolve `DEMO`), então estimativa, geração e replanejamento usam o heurístico e a rotina avisa "Modo demo, sem IA". O visitante entra por `POST /auth/demo` (sem senha), só se `DEMO_ENABLED` e a conta existir. Escreve normalmente, mas com teto (`DEMO_MAX_TASKS`, `DEMO_MAX_COMMITMENTS`, 403 `DEMO_LIMIT`). O reset (CLI compilada, `node dist/demo/demo.cli.js`, adequada a cron) apaga e recria os dados sem derrubar sessões; o CLI roda com `BACKGROUND_JOBS_ENABLED=false` para não retomar jobs da API nem consultar o provedor de IA.
+- **Teto global de IA:** `AI_GLOBAL_DAILY_LIMIT` (padrão 200, dia UTC), contado no banco (`AiGlobalUsage`, atômico). A ordem é global primeiro e depois o limite do usuário; quem estoura o próprio limite **devolve** o uso global. Estourou qualquer um: heurístico e aviso "Limite diário de IA atingido".
+- **Chave nunca exposta:** teste e2e com um provedor cujo erro **contém** a chave (como um fornecedor que ecoa a URL) verifica respostas e logs; `pnpm check:secrets` varre o bundle do front, o build da API e os arquivos versionados por chave no formato do Google e pelos valores reais dos segredos configurados.
+- **Limitações:** a demo é uma conta **compartilhada** (visitantes veem as alterações uns dos outros até o reset); limites em banco/memória por instância; sem convite, o cadastro fechado só admite contas criadas manualmente.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).

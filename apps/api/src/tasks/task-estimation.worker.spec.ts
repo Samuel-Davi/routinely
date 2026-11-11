@@ -1,6 +1,7 @@
 import type { Task as TaskRow } from '@prisma/client';
 import { DEFAULT_PREFERENCES } from '@routinely/shared';
 import type { TaskEstimator } from '../ai/estimate-task';
+import type { AppConfig } from '../config/config.module';
 import type { PreferencesService } from '../preferences/preferences.service';
 import { TaskEstimationWorker } from './task-estimation.worker';
 import type { TasksRepository } from './tasks.repository';
@@ -36,6 +37,7 @@ function setup(row: TaskRow | null = task) {
     tasks as unknown as TasksRepository,
     estimator as unknown as TaskEstimator,
     { getFor: jest.fn().mockResolvedValue(DEFAULT_PREFERENCES) } as unknown as PreferencesService,
+    { BACKGROUND_JOBS_ENABLED: true } as AppConfig,
   );
   return { worker, tasks, estimator };
 }

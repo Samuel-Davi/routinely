@@ -44,7 +44,9 @@ function setup() {
       client,
       prisma as unknown as PrismaService,
       { now: () => new Date('2026-11-10T12:00:00.000Z') },
-      { consume: async () => quota.allowed } as unknown as AiQuotaService,
+      {
+        acquire: async () => (quota.allowed ? 'ALLOWED' : 'USER_LIMIT'),
+      } as unknown as AiQuotaService,
     ),
   };
 }

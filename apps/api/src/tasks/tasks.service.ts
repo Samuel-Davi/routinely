@@ -3,6 +3,7 @@ import type { Task as TaskRow } from '@prisma/client';
 import type { CreateTaskInput, Task, TaskStatus, UpdateTaskInput } from '@routinely/shared';
 import { AppError } from '../common/app-error';
 import { CurrentUser } from '../common/current-user';
+import { DemoLimitsService } from '../users/demo-limits.service';
 import { ESTIMATION_QUEUE, type EstimationQueue } from './estimation-queue';
 import { toTaskDto } from './task.mapper';
 import { TasksRepository, type TaskUpdateData } from './tasks.repository';
@@ -12,6 +13,7 @@ export class TasksService {
   constructor(
     private readonly repository: TasksRepository,
     private readonly currentUser: CurrentUser,
+    private readonly demoLimits: DemoLimitsService,
     @Inject(ESTIMATION_QUEUE) private readonly estimationQueue: EstimationQueue,
   ) {}
 
@@ -26,6 +28,7 @@ export class TasksService {
 
   /** Creates the task and asks the AI for an estimate in the background. */
   async create(input: CreateTaskInput): Promise<Task> {
+    await this.demoLimits.assertCanCreate(this.currentUser.id, 'task');
     await this.assertCommitment(input.commitmentId);
     const row = await this.repository.create(this.currentUser.id, {
       commitmentId: input.commitmentId ?? null,

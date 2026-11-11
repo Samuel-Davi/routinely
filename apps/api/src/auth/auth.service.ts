@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { hash, verify, type Algorithm } from '@node-rs/argon2';
-import type { AuthUser, LoginInput, RegisterInput } from '@routinely/shared';
+import type { AuthConfig, AuthUser, LoginInput, RegisterInput } from '@routinely/shared';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
 import { APP_CONFIG, type AppConfig } from '../config/config.module';
@@ -31,7 +31,32 @@ export class AuthService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /** What the login screen may show before anyone is signed in. */
+  async publicConfig(): Promise<AuthConfig> {
+    return {
+      registrationEnabled: this.config.REGISTRATION_ENABLED,
+      demoAvailable: (await this.findDemoUser()) !== null,
+    };
+  }
+
+  /** Opens a session on the shared demo account (no password involved). */
+  async demoLogin(): Promise<{ user: AuthUser; tokens: SessionTokens }> {
+    const user = await this.findDemoUser();
+    if (!user) throw new AppError('NOT_FOUND', 'Recurso não encontrado.', 404);
+    return { user: toAuthUser(user), tokens: await this.issue(user.id, randomUUID()) };
+  }
+
+  private async findDemoUser() {
+    if (!this.config.DEMO_ENABLED || !this.config.DEMO_EMAIL) return null;
+    const user = await this.repository.findUserByEmail(this.config.DEMO_EMAIL);
+    return user?.isDemo ? user : null;
+  }
+
   async register(input: RegisterInput): Promise<{ user: AuthUser; tokens: SessionTokens }> {
+    if (!this.config.REGISTRATION_ENABLED) {
+      // Same answer whatever the input: nothing about accounts is revealed.
+      throw new AppError('REGISTRATION_DISABLED', 'O cadastro está indisponível.', 403);
+    }
     if (await this.repository.findUserByEmail(input.email)) {
       // Deliberately generic: do not confirm which e-mails already have an account.
       throw new AppError(
@@ -135,6 +160,11 @@ export class AuthService {
   }
 }
 
-function toAuthUser(user: { id: string; email: string | null; name: string }): AuthUser {
-  return { id: user.id, email: user.email, name: user.name };
+function toAuthUser(user: {
+  id: string;
+  email: string | null;
+  name: string;
+  isDemo: boolean;
+}): AuthUser {
+  return { id: user.id, email: user.email, name: user.name, isDemo: user.isDemo };
 }

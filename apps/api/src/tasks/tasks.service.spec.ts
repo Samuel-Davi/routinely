@@ -1,6 +1,7 @@
 import type { Task as TaskRow } from '@prisma/client';
 import { AppError } from '../common/app-error';
 import type { CurrentUser } from '../common/current-user';
+import type { DemoLimitsService } from '../users/demo-limits.service';
 import type { EstimationQueue } from './estimation-queue';
 import type { TasksRepository } from './tasks.repository';
 import { TasksService } from './tasks.service';
@@ -50,6 +51,7 @@ function setup(existing: TaskRow | null = taskRow()) {
   const service = new TasksService(
     repository as unknown as TasksRepository,
     { id: USER_ID } as CurrentUser,
+    { assertCanCreate: jest.fn().mockResolvedValue(undefined) } as unknown as DemoLimitsService,
     queue,
   );
   return { service, repository, queue };

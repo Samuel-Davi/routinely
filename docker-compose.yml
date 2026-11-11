@@ -72,6 +72,14 @@ services:
       AI_RATE_LIMIT_TTL_MS: ${AI_RATE_LIMIT_TTL_MS:-60000}
       AI_RATE_LIMIT_MAX: ${AI_RATE_LIMIT_MAX:-20}
       AI_DAILY_LIMIT: ${AI_DAILY_LIMIT:-40}
+      AI_GLOBAL_DAILY_LIMIT: ${AI_GLOBAL_DAILY_LIMIT:-200}
+      # Portfolio mode: closed signup, shared demo account without AI (see docs/DEPLOY.md)
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-true}
+      DEMO_ENABLED: ${DEMO_ENABLED:-false}
+      DEMO_EMAIL: ${DEMO_EMAIL:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      DEMO_MAX_TASKS: ${DEMO_MAX_TASKS:-15}
+      DEMO_MAX_COMMITMENTS: ${DEMO_MAX_COMMITMENTS:-20}
       # Required: signs the login tokens. Generate with: openssl rand -base64 48
       JWT_SECRET: ${JWT_SECRET:-}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}

@@ -13,7 +13,12 @@ function setup(config: Partial<AppConfig> = {}) {
   const sleep = jest.fn().mockResolvedValue(undefined);
   const client = new LlmClient(
     provider,
-    { LLM_MAX_ATTEMPTS: 3, LLM_BACKOFF_BASE_MS: 1000, ...config } as AppConfig,
+    {
+      LLM_MAX_ATTEMPTS: 3,
+      LLM_BACKOFF_BASE_MS: 1000,
+      BACKGROUND_JOBS_ENABLED: true,
+      ...config,
+    } as AppConfig,
     { sleep, random: () => 0.5 },
   );
   return { provider, sleep, client };

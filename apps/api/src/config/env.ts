@@ -56,6 +56,21 @@ const baseEnvSchema = z.object({
   AI_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(20),
   /** AI uses (estimations, generations, replans) per user and UTC day, to protect the free quota. */
   AI_DAILY_LIMIT: z.coerce.number().int().min(0).default(40),
+  /** AI uses across all users per UTC day. When reached, everyone gets the heuristic. */
+  AI_GLOBAL_DAILY_LIMIT: z.coerce.number().int().min(0).default(200),
+
+  /** Off for one-shot CLI processes: no resuming jobs or probing the AI provider at start. */
+  BACKGROUND_JOBS_ENABLED: z.enum(['true', 'false']).default('true'),
+  /** Open signup. Default: on in development, off in production (portfolio mode). */
+  REGISTRATION_ENABLED: z.enum(['true', 'false']).optional(),
+  /** Shows "Entrar como demo" (when the demo account exists). */
+  DEMO_ENABLED: z.enum(['true', 'false']).default('false'),
+  /** Credentials of the demo account, set by `pnpm demo:reset`. Never hard-coded. */
+  DEMO_EMAIL: z.string().trim().toLowerCase().optional(),
+  DEMO_PASSWORD: optionalSecret,
+  /** Write limits of the demo account, so it cannot become a dumping ground. */
+  DEMO_MAX_TASKS: z.coerce.number().int().min(1).default(15),
+  DEMO_MAX_COMMITMENTS: z.coerce.number().int().min(1).default(20),
 
   /** Signs access tokens. Required in production (>= 32 chars); in dev a random one is used. */
   JWT_SECRET: optionalSecret,
@@ -86,6 +101,11 @@ export const envSchema = baseEnvSchema
     // Without a configured secret (dev/test only) sessions last until the process restarts.
     JWT_SECRET: env.JWT_SECRET ?? randomBytes(48).toString('base64url'),
     COOKIE_SECURE: env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : env.NODE_ENV === 'production',
+    REGISTRATION_ENABLED: env.REGISTRATION_ENABLED
+      ? env.REGISTRATION_ENABLED === 'true'
+      : env.NODE_ENV !== 'production',
+    DEMO_ENABLED: env.DEMO_ENABLED === 'true',
+    BACKGROUND_JOBS_ENABLED: env.BACKGROUND_JOBS_ENABLED === 'true',
   }));
 
 export type Env = z.infer<typeof envSchema>;

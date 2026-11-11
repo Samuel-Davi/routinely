@@ -10,5 +10,6 @@ import { RoutinesService } from './routines.service';
   imports: [TasksModule, FixedCommitmentsModule, PreferencesModule],
   controllers: [RoutinesController],
   providers: [RoutinesService, RoutinesRepository],
+  exports: [RoutinesService],
 })
 export class RoutinesModule {}

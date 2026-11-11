@@ -56,5 +56,16 @@ export const authUserSchema = z.object({
   id: idSchema,
   email: z.string().nullable(),
   name: z.string(),
+  /** The shared demo account: the UI shows a "Modo demo, sem IA" seal. */
+  isDemo: z.boolean(),
 });
 export type AuthUser = z.infer<typeof authUserSchema>;
+
+/** Public information the login screen needs before anyone is signed in. */
+export const authConfigSchema = z.object({
+  /** When false, the signup screen is hidden and `POST /auth/register` answers 403. */
+  registrationEnabled: z.boolean(),
+  /** The "Entrar como demo" button: demo enabled AND the demo account exists. */
+  demoAvailable: z.boolean(),
+});
+export type AuthConfig = z.infer<typeof authConfigSchema>;

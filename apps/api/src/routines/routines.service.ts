@@ -19,7 +19,7 @@ import {
   type RoutineTrigger,
   type UnscheduledTask,
 } from '@routinely/shared';
-import { AiQuotaService } from '../ai/ai-quota.service';
+import { AiQuotaService, noticeFor } from '../ai/ai-quota.service';
 import { RoutineProposer, type RoutinePlanningInput } from '../ai/generate-routine';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
@@ -48,8 +48,6 @@ import { toBlockDto, toRoutineDto, toRoutineSummaryDto } from './routine.mapper'
 import { buildPlanningInput, buildProposeFn } from './ai-request';
 import { RoutinesRepository, type NewBlock, type RoutineWithBlocks } from './routines.repository';
 
-const QUOTA_NOTICE = 'Limite diário de uso da IA atingido. Rotina gerada sem IA.';
-
 /** An interrupted generation is resumed at most this many times. */
 export const MAX_RESUMES = 2;
 
@@ -77,6 +75,7 @@ export class RoutinesService implements OnApplicationBootstrap {
    * `MAX_RESUMES`, so a generation that crashes the process cannot cause a restart loop.
    */
   async onApplicationBootstrap(): Promise<void> {
+    if (!this.config.BACKGROUND_JOBS_ENABLED) return;
     for (const job of await this.repository.findInterruptedJobs()) {
       if (job.resumeCount >= MAX_RESUMES) {
         await this.repository.markFailed(job.id, 'A geração foi interrompida. Tente novamente.');
@@ -198,6 +197,23 @@ export class RoutinesService implements OnApplicationBootstrap {
     return toRoutineSummaryDto(routine);
   }
 
+  /**
+   * Generates and waits (no request involved): used by the demo reset. The AI policy is the same
+   * as for any job, so the demo account gets the heuristic planner.
+   */
+  async generateNow(userId: string): Promise<void> {
+    const prefs = await this.preferences.getFor(userId);
+    const today = utcToZonedParts(this.clock.now(), prefs.timezone).date;
+    const tasks = (await this.tasks.findAll(userId)).filter((task) => task.status !== 'DONE');
+    const range = resolveRange(today, {
+      untilLastDeadline: true,
+      deadlines: tasks.map((task) => task.deadline),
+      timezone: prefs.timezone,
+    });
+    const routine = await this.repository.createPending(userId, { trigger: 'GENERATE', ...range });
+    await this.runJob(userId, routine.id, range);
+  }
+
   /** Starts a new generation with the same range and trigger as a version that failed. */
   async retry(id: string): Promise<RoutineSummary> {
     const failed = await this.repository.findById(this.currentUser.id, id);
@@ -255,7 +271,8 @@ export class RoutinesService implements OnApplicationBootstrap {
 
       const aiAvailable = this.proposer.isAvailable();
       // Over the daily budget the routine is still built, by the heuristic.
-      const useAi = aiAvailable && (await this.quota.consume(userId));
+      const decision = aiAvailable ? await this.quota.acquire(userId) : null;
+      const useAi = decision === 'ALLOWED';
       const buildInput = buildPlanningInput(context, titles, commitmentOfTask, instruction);
       const { aiTasks, overflow } = useAi
         ? this.fitToBudget(engineTasks, buildInput)
@@ -278,7 +295,9 @@ export class RoutinesService implements OnApplicationBootstrap {
           }
         : planned;
       const plan =
-        aiAvailable && !useAi && withRest.notice ? { ...withRest, notice: QUOTA_NOTICE } : withRest;
+        decision && !useAi && withRest.notice
+          ? { ...withRest, notice: noticeFor(decision) }
+          : withRest;
 
       const blocks: NewBlock[] = [
         ...carried.map((block) => ({

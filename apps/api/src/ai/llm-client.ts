@@ -49,6 +49,7 @@ export class LlmClient implements OnApplicationBootstrap {
 
   /** Validates the configured models against the vendor's list. Never blocks or fails the boot. */
   async onApplicationBootstrap(): Promise<void> {
+    if (!this.config.BACKGROUND_JOBS_ENABLED) return;
     if (!this.provider.resolveModels || !this.provider.isConfigured()) return;
     try {
       this.modelReport = await this.provider.resolveModels();

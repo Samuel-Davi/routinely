@@ -7,6 +7,7 @@ import {
 } from '@routinely/shared';
 import { AppError } from '../common/app-error';
 import { CurrentUser } from '../common/current-user';
+import { DemoLimitsService } from '../users/demo-limits.service';
 import { UsersRepository } from '../users/users.repository';
 import { FixedCommitmentsRepository } from './fixed-commitments.repository';
 
@@ -46,6 +47,7 @@ export class FixedCommitmentsService {
     private readonly repository: FixedCommitmentsRepository,
     private readonly users: UsersRepository,
     private readonly currentUser: CurrentUser,
+    private readonly demoLimits: DemoLimitsService,
   ) {}
 
   async list(): Promise<FixedCommitment[]> {
@@ -58,6 +60,7 @@ export class FixedCommitmentsService {
   }
 
   async create(input: FixedCommitmentInput): Promise<FixedCommitment> {
+    await this.demoLimits.assertCanCreate(this.currentUser.id, 'commitment');
     const row = await this.repository.create(this.currentUser.id, input);
     await this.users.touchSchedule(this.currentUser.id);
     return this.withOverlaps(row);

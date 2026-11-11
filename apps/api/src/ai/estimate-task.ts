@@ -100,9 +100,10 @@ export class TaskEstimator {
       };
     }
 
-    // Out of daily AI uses: keep the task plannable with the deterministic estimate.
-    if (!(await this.quota.consume(input.userId))) {
-      this.logger.warn('estimateTask: daily AI limit reached, using the heuristic');
+    // Demo account or out of daily AI uses: keep the task plannable with the deterministic estimate.
+    const decision = await this.quota.acquire(input.userId);
+    if (decision !== 'ALLOWED') {
+      if (decision !== 'DEMO') this.logger.warn(`estimateTask: ${decision}, using the heuristic`);
       return { ...heuristicEstimate(input), source: 'HEURISTIC', cached: false };
     }
 

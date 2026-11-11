@@ -1,9 +1,11 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  authConfigSchema,
   authUserSchema,
   loginSchema,
   registerSchema,
+  type AuthConfig,
   type AuthUser,
   type LoginInput,
   type RegisterInput,
@@ -17,6 +19,7 @@ import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import { AuthService } from './auth.service';
 import { REFRESH_COOKIE, clearAuthCookies, setAuthCookies } from './cookies';
 import { Public } from './public.decorator';
+import { RegistrationEnabledGuard } from './registration-enabled.guard';
 import { RateLimiter } from './rate-limiter';
 
 @ApiTags('auth')
@@ -35,6 +38,29 @@ export class AuthController {
   }
 
   @Public()
+  @Get('config')
+  @ApiOperation({
+    summary: 'O que a tela de login pode mostrar (cadastro aberto? demo disponível?)',
+  })
+  @ApiZodResponse(authConfigSchema)
+  publicConfig(): Promise<AuthConfig> {
+    return this.service.publicConfig();
+  }
+
+  @Public()
+  @Post('demo')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Entra na conta demo compartilhada (sem IA), quando habilitada' })
+  @ApiZodResponse(authUserSchema)
+  async demo(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<AuthUser> {
+    if (!this.perIp.allow(`ip:${req.ip}`)) throw AppError.tooManyRequests();
+    const { user, tokens } = await this.service.demoLogin();
+    setAuthCookies(res, tokens, this.config);
+    return user;
+  }
+
+  @Public()
+  @UseGuards(RegistrationEnabledGuard)
   @Post('register')
   @ApiOperation({ summary: 'Cria a conta e abre a sessão (cookies httpOnly)' })
   @ApiZodBody(registerSchema)

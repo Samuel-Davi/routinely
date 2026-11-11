@@ -3,6 +3,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { CommonModule } from './common/common.module';
+import { DemoModule } from './demo/demo.module';
 import { APP_CONFIG, ConfigModule, type AppConfig } from './config/config.module';
 import { FixedCommitmentsModule } from './fixed-commitments/fixed-commitments.module';
 import { HealthModule } from './health/health.module';
@@ -53,6 +54,7 @@ import { UsersModule } from './users/users.module';
     TasksModule,
     PreferencesModule,
     RoutinesModule,
+    DemoModule,
   ],
 })
 export class AppModule {}

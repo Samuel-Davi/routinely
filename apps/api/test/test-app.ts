@@ -26,7 +26,7 @@ export async function createTestApp(
 /** Empties every table and recreates the single seed user. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "RoutineBlock", "Routine", "EstimateCache", "Task", "FixedCommitment", "Preferences", "User" CASCADE',
+    'TRUNCATE TABLE "RoutineBlock", "Routine", "EstimateCache", "Task", "FixedCommitment", "Preferences", "AiGlobalUsage", "User" CASCADE',
   );
   await prisma.user.create({ data: { id: SEED_USER_ID, name: 'Test user' } });
 }

@@ -1,3 +1,4 @@
+import type { DemoLimitsService } from '../users/demo-limits.service';
 import type { FixedCommitment as FixedCommitmentRow } from '@prisma/client';
 import type { FixedCommitmentInput } from '@routinely/shared';
 import type { CurrentUser } from '../common/current-user';
@@ -36,6 +37,7 @@ function setup(existing: FixedCommitmentRow | null = row) {
     repository as unknown as FixedCommitmentsRepository,
     users as unknown as UsersRepository,
     { id: 'user-1' } as CurrentUser,
+    { assertCanCreate: jest.fn().mockResolvedValue(undefined) } as unknown as DemoLimitsService,
   );
   return { service, repository, users };
 }

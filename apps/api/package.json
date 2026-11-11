@@ -17,7 +17,8 @@
     "prisma:seed": "dotenv -e ../../.env -- prisma db seed",
     "postinstall": "prisma generate",
     "eval:ai": "dotenv -e ../../.env -- tsx eval/run.ts",
-    "claim-owner": "dotenv -e ../../.env -- node scripts/claim-owner.mjs"
+    "claim-owner": "dotenv -e ../../.env -- node scripts/claim-owner.mjs",
+    "demo:reset": "nest build && dotenv -e ../../.env -- node dist/demo/demo.cli.js"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

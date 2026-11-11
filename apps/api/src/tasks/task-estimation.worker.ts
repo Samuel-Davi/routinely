@@ -1,5 +1,6 @@
-import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { TaskEstimator } from '../ai/estimate-task';
+import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import { PreferencesService } from '../preferences/preferences.service';
 import type { EstimationQueue } from './estimation-queue';
 import { TasksRepository } from './tasks.repository';
@@ -17,10 +18,12 @@ export class TaskEstimationWorker implements EstimationQueue, OnApplicationBoots
     private readonly tasks: TasksRepository,
     private readonly estimator: TaskEstimator,
     private readonly preferences: PreferencesService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   /** Picks up estimations left pending by a previous process. */
   async onApplicationBootstrap(): Promise<void> {
+    if (!this.config.BACKGROUND_JOBS_ENABLED) return;
     const pending = await this.tasks.findPendingEstimations();
     for (const task of pending) this.enqueue(task.id);
     if (pending.length > 0) this.logger.log(`Resuming ${pending.length} pending estimation(s)`);
