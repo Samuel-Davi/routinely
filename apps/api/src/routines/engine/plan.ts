@@ -31,6 +31,7 @@ const NOTICES: Record<string, string> = {
   RATE_LIMIT: 'A IA atingiu o limite de uso. Rotina gerada sem IA.',
   TIMEOUT: 'A IA demorou demais para responder. Rotina gerada sem IA.',
   VALIDATION: 'A IA devolveu uma resposta inválida. Rotina gerada sem IA.',
+  OVERLOADED: 'A IA está sobrecarregada no momento. Rotina gerada sem IA.',
   UNAVAILABLE: 'IA indisponível ou não configurada. Rotina gerada sem IA.',
 };
 const GENERIC_NOTICE = 'Não foi possível usar a IA. Rotina gerada sem IA.';

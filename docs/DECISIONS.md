@@ -78,6 +78,17 @@ Formato curto: **contexto → decisão → consequência**.
 - **Decisão:** se a IA estiver indisponível ao estimar uma tarefa (sem chave, 429 após as tentativas, resposta inválida após o retry), a tarefa recebe uma estimativa heurística marcada como `HEURISTIC` ("Estimativa sem IA"), com opção de pedir de novo ou ajustar manualmente. `FAILED` fica reservado a erros inesperados.
 - **Motivo:** sem estimativa a tarefa não pode ser planejada; o app precisa funcionar de ponta a ponta mesmo sem chave de API.
 
+## ADR-016 — Blocos de pelo menos 30 minutos
+
+- **Contexto:** em uso real apareceram blocos de 15 min. Todos vinham do heurístico: quando a passada de "pedaços ≥ 30 min" não fechava a tarefa, ele refazia a tarefa **inteira** com pedaços de 15, e compromissos em horários quebrados (08:15, 18:15) criavam janelas de 15 min que alimentavam isso.
+- **Decisão:** ao dividir uma tarefa, o heurístico (1) usa pedaços ≥ 30 min; (2) encurta um bloco em vez de deixar uma sobra menor que 30 (90 + 15 vira 75 + 30); (3) só para os minutos que ainda não couberem, estica o bloco encurtado e então usa pedaços de 15. Blocos colados da mesma tarefa são fundidos se couberem num bloco de foco. No validador, uma proposta da IA com bloco < 30 min ao lado de outros blocos da mesma tarefa é rejeitada (`FRAGMENTED`) e a tarefa vai para o heurístico.
+- **Consequência:** um bloco de 15 min só existe quando a tarefa inteira tem 15 min ou quando é o único jeito de ela caber antes do prazo. Ajustes manuais continuam livres.
+
+## ADR-017 — Erros 5xx da IA são re-tentados
+
+- **Contexto:** nos logs reais, o Gemini respondeu 503 várias vezes e a geração caía direto no heurístico.
+- **Decisão:** além de 429, erros 5xx (tipo `OVERLOADED`) passam pelo mesmo backoff exponencial com jitter, até `LLM_MAX_ATTEMPTS`. Timeout (504) não é re-tentado, para não triplicar a espera.
+
 ---
 
 # Pendências e riscos conhecidos

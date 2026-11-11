@@ -145,6 +145,7 @@ describe('planRoutine', () => {
     ['TIMEOUT', 'demorou demais'],
     ['VALIDATION', 'resposta inválida'],
     ['UNAVAILABLE', 'indisponível'],
+    ['OVERLOADED', 'sobrecarregada'],
     ['PROVIDER', 'Não foi possível usar a IA'],
   ])('falls back to the heuristic when the AI fails with %s', async (kind, text) => {
     const { propose, requests } = scripted(llmError(kind));

@@ -45,6 +45,14 @@ describe('LlmClient', () => {
     expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([750, 1500]);
   });
 
+  it('also backs off when the provider is overloaded (5xx)', async () => {
+    const { client, provider, sleep } = setup();
+    provider.reply(new LlmError('OVERLOADED', '503'), valid);
+    await expect(client.generateStructured(input)).resolves.toEqual(valid);
+    expect(provider.calls).toHaveLength(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
   it('gives up after the maximum number of attempts', async () => {
     const { client, provider, sleep } = setup();
     provider.reply(rateLimit(), rateLimit(), rateLimit(), valid);

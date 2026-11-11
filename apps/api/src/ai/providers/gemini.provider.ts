@@ -96,7 +96,7 @@ export function toLlmError(error: unknown): LlmError {
       return new LlmError('UNAVAILABLE', `Gemini rejected the credentials (${error.status})`);
     }
     if (error.status >= 500) {
-      return new LlmError('UNAVAILABLE', `Gemini is unavailable (${error.status})`);
+      return new LlmError('OVERLOADED', `Gemini is overloaded (${error.status})`);
     }
     return new LlmError('PROVIDER', `Gemini request failed (${error.status})`);
   }

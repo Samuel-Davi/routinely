@@ -1,6 +1,6 @@
-import { toLocalDateTime } from '@routinely/shared';
+import { durationMinutes, toLocalDateTime } from '@routinely/shared';
 import { at, block, context, prefs, task, workWeek } from './fixtures';
-import { compareTasks, scheduleHeuristic } from './heuristic';
+import { compareTasks, mergeTouchingBlocks, scheduleHeuristic } from './heuristic';
 
 const ctx = context({ commitments: workWeek });
 const show = (blocks: { taskId: string; start: number; end: number }[]) =>
@@ -217,5 +217,143 @@ describe('scheduleHeuristic', () => {
       task('c', { priority: 'HIGH' }),
     ];
     expect(scheduleHeuristic(tasks, ctx)).toEqual(scheduleHeuristic([...tasks].reverse(), ctx));
+  });
+});
+
+describe('scheduleHeuristic — fragmentation', () => {
+  const shortBlocks = (blocks: { start: number; end: number }[]) =>
+    blocks.filter((b) => durationMinutes(b) < 30);
+  const total = (blocks: { start: number; end: number }[]) =>
+    blocks.reduce((sum, b) => sum + durationMinutes(b), 0);
+
+  it('shortens a block instead of leaving a 15 minute tail (90 + 15 → 75 + 30)', () => {
+    const result = scheduleHeuristic(
+      [task('a', { minutes: 105 })],
+      context({ now: at('2026-11-09T12:30') }),
+    );
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T13:00–14:15', 'a 2026-11-09T14:30–15:00']);
+  });
+
+  it('keeps whole windows when that avoids a tail', () => {
+    // Free: 07:00–08:15 (75) and 21:00–22:00 (60); 135 minutes with a 75 minute max block.
+    const tight = context({
+      rangeEnd: '2026-11-09',
+      prefs: { ...prefs, maxFocusBlockMinutes: 75 },
+      commitments: [{ id: 'c', daysOfWeek: [1], startTime: '08:15', endTime: '21:00' }],
+    });
+    const result = scheduleHeuristic(
+      [task('a', { minutes: 135, deadline: at('2026-11-09T22:00') })],
+      tight,
+    );
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–08:15', 'a 2026-11-09T21:00–22:00']);
+  });
+
+  it('stretches a shaved block before resorting to a crumb', () => {
+    // Free: 07:00–08:30 (90) and 21:45–22:00 (15). 105 minutes: the first block is shaved
+    // to 75 to avoid a 15 minute tail, but the 30 minute tail fits nowhere, so the block
+    // grows back to 90 and only the last 15 minutes become a crumb.
+    const day = context({
+      rangeEnd: '2026-11-09',
+      commitments: [{ id: 'c', daysOfWeek: [1], startTime: '08:30', endTime: '21:45' }],
+    });
+    const result = scheduleHeuristic(
+      [task('a', { minutes: 105, deadline: at('2026-11-09T22:00') })],
+      day,
+    );
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–08:30', 'a 2026-11-09T21:45–22:00']);
+  });
+
+  it('reports the honest shortfall when even crumbs do not fit', () => {
+    // 105 free minutes in one window, but a block holds at most 90 and needs a break after.
+    const day = context({
+      rangeEnd: '2026-11-09',
+      commitments: [{ id: 'c', daysOfWeek: [1], startTime: '08:45', endTime: '22:00' }],
+    });
+    const result = scheduleHeuristic(
+      [task('a', { minutes: 105, deadline: at('2026-11-09T22:00') })],
+      day,
+    );
+    expect(result.blocks).toEqual([]);
+    expect(result.unscheduled).toEqual([
+      { taskId: 'a', reason: 'DEADLINE_IMPOSSIBLE', missingMinutes: 15 },
+    ]);
+  });
+
+  it('uses a single crumb only for the minutes that fit nowhere else', () => {
+    const tight = context({
+      rangeEnd: '2026-11-09',
+      commitments: [
+        { id: 'a', daysOfWeek: [1], startTime: '07:15', endTime: '12:00' },
+        { id: 'b', daysOfWeek: [1], startTime: '13:00', endTime: '20:00' },
+      ],
+    });
+    // Free: 07:00–07:15 (15) and 20:00–22:00 (120) → 90 + 15 (after the break) + the 07:00 slot.
+    const result = scheduleHeuristic(
+      [task('a', { minutes: 120, deadline: at('2026-11-09T22:00') })],
+      tight,
+    );
+    expect(result.unscheduled).toEqual([]);
+    expect(total(result.blocks)).toBe(120);
+    expect(shortBlocks(result.blocks).length).toBeLessThanOrEqual(2);
+  });
+
+  it('leaves no block under 30 minutes in a week shaped like the reported one', () => {
+    // Commitments on odd quarter hours (08:15, 18:15) used to create 15 minute crumbs.
+    const commitments = [
+      { id: 'devocional', daysOfWeek: [0, 1, 2, 3, 4, 5, 6], startTime: '07:00', endTime: '08:00' },
+      { id: 'wa-remoto', daysOfWeek: [6], startTime: '08:15', endTime: '11:15' },
+      { id: 'esi', daysOfWeek: [0], startTime: '09:00', endTime: '11:00' },
+      { id: 'dados', daysOfWeek: [2, 4], startTime: '14:00', endTime: '16:00' },
+      { id: 'reforco', daysOfWeek: [6], startTime: '14:00', endTime: '16:00' },
+      { id: 'ciber', daysOfWeek: [2], startTime: '16:00', endTime: '18:00' },
+      { id: 'empreend', daysOfWeek: [1, 3], startTime: '16:00', endTime: '18:00' },
+      { id: 'etica', daysOfWeek: [5], startTime: '16:00', endTime: '18:00' },
+      { id: 'piola', daysOfWeek: [5], startTime: '17:00', endTime: '19:00' },
+      { id: 'culto', daysOfWeek: [0], startTime: '18:00', endTime: '21:00' },
+      { id: 'wa', daysOfWeek: [2, 4], startTime: '18:15', endTime: '21:15' },
+      { id: 'gerencia', daysOfWeek: [1, 3], startTime: '20:00', endTime: '22:00' },
+    ];
+    const week = context({
+      commitments,
+      prefs: { ...prefs, lunchStart: '12:00', lunchEnd: '14:00' },
+      now: at('2026-11-11T09:00'),
+    });
+    const tasks = [
+      task('estado1', { minutes: 120, deadline: at('2026-11-12T18:00'), priority: 'HIGH' }),
+      task('jenkins', { minutes: 180, deadline: at('2026-11-13T20:00'), priority: 'URGENT' }),
+      task('actions', { minutes: 120, deadline: at('2026-11-13T20:00'), priority: 'HIGH' }),
+      task('estado2', { minutes: 240, deadline: at('2026-11-14T22:00') }),
+      task('projetos', { minutes: 600, deadline: at('2026-11-15T22:00') }),
+    ];
+    const result = scheduleHeuristic(tasks, week);
+    expect(result.unscheduled).toEqual([]);
+    expect(shortBlocks(result.blocks)).toEqual([]);
+  });
+});
+
+describe('mergeTouchingBlocks', () => {
+  it('joins touching blocks of the same task up to the max focus block', () => {
+    const merged = mergeTouchingBlocks(
+      [
+        block('a', '2026-11-09T18:00', '2026-11-09T18:30'),
+        block('a', '2026-11-09T17:00', '2026-11-09T18:00'),
+        block('b', '2026-11-09T18:30', '2026-11-09T19:00'),
+        block('a', '2026-11-09T19:00', '2026-11-09T20:00'),
+      ],
+      90,
+    );
+    expect(show(merged)).toEqual([
+      'a 2026-11-09T17:00–18:30',
+      'b 2026-11-09T18:30–19:00',
+      'a 2026-11-09T19:00–20:00',
+    ]);
+  });
+
+  it('does not merge beyond the max focus block', () => {
+    const blocks = [
+      block('a', '2026-11-09T17:00', '2026-11-09T18:00'),
+      block('a', '2026-11-09T18:00', '2026-11-09T19:00'),
+    ];
+    expect(mergeTouchingBlocks(blocks, 90)).toHaveLength(2);
   });
 });

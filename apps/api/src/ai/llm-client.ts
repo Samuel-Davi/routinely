@@ -29,7 +29,7 @@ export function backoffDelay(attempt: number, baseMs: number, random: number): n
 
 /**
  * Resilience around the raw provider, shared by every use case:
- *  - 429/unavailable → exponential backoff with jitter, up to `LLM_MAX_ATTEMPTS`;
+ *  - 429 and 5xx (overloaded) → exponential backoff with jitter, up to `LLM_MAX_ATTEMPTS`;
  *  - schema validation failure → exactly one retry on the retry model, telling
  *    the model what was wrong; a second failure surfaces as a typed `LlmError`.
  */
@@ -83,7 +83,7 @@ export class LlmClient {
         return result;
       } catch (error) {
         const llmError = isLlmError(error) ? error : new LlmError('PROVIDER', 'LLM request failed');
-        const retryable = llmError.kind === 'RATE_LIMIT';
+        const retryable = llmError.kind === 'RATE_LIMIT' || llmError.kind === 'OVERLOADED';
         if (!retryable || attempt >= maxAttempts) {
           this.logger.warn(
             `${input.name}: ${llmError.kind} after ${attempt} attempt(s) — ${llmError.message}`,
@@ -92,7 +92,7 @@ export class LlmClient {
         }
         const delay = backoffDelay(attempt, this.config.LLM_BACKOFF_BASE_MS, this.timing.random());
         this.logger.warn(
-          `${input.name}: rate limited, attempt ${attempt}/${maxAttempts}, waiting ${delay}ms`,
+          `${input.name}: ${llmError.kind}, attempt ${attempt}/${maxAttempts}, waiting ${delay}ms`,
         );
         await this.timing.sleep(delay);
       }

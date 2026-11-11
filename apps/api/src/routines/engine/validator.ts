@@ -8,6 +8,7 @@ import {
   toLocalDateTime,
   type PlacementViolation,
 } from '@routinely/shared';
+import { PREFERRED_MIN_CHUNK_MINUTES } from './heuristic';
 import type { EngineBlock, EngineTask, PlanningContext } from './types';
 
 export type ValidationIssueCode =
@@ -17,6 +18,7 @@ export type ValidationIssueCode =
   | 'OVERLAPS_PROPOSED'
   | 'BREAK_TOO_SHORT'
   | 'NOT_SPLITTABLE'
+  | 'FRAGMENTED'
   | 'WRONG_TOTAL'
   | 'MISSING';
 
@@ -132,6 +134,14 @@ export function validateAllocations(
         'WRONG_TOTAL',
         task.id,
         `"${task.title}": foram alocados ${total} minutos, mas a tarefa precisa de exatamente ${task.minutes}.`,
+      );
+    }
+    const crumb = own.find((block) => durationMinutes(block) < PREFERRED_MIN_CHUNK_MINUTES);
+    if (crumb && own.length > 1) {
+      reject(
+        'FRAGMENTED',
+        task.id,
+        `"${task.title}": o bloco ${label(crumb)} tem menos de ${PREFERRED_MIN_CHUNK_MINUTES} minutos; junte-o a outro bloco da tarefa.`,
       );
     }
     if (!task.splittable && own.length > 1) {

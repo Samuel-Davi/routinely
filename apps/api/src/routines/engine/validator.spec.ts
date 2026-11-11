@@ -141,6 +141,28 @@ describe('validateAllocations', () => {
     expect(codes(result)).toEqual(['NOT_SPLITTABLE']);
   });
 
+  it('rejects a crumb next to other blocks of the same task', () => {
+    const result = validateAllocations(
+      [
+        block('a', '2026-11-09T17:00', '2026-11-09T18:30'),
+        block('a', '2026-11-09T19:00', '2026-11-09T19:15'),
+      ],
+      [task('a', { minutes: 105 })],
+      ctx,
+    );
+    expect(codes(result)).toEqual(['FRAGMENTED']);
+    expect(result.issues[0]?.message).toContain('menos de 30 minutos');
+  });
+
+  it('accepts a 15 minute block when it is the whole task', () => {
+    const result = validateAllocations(
+      [block('a', '2026-11-09T17:00', '2026-11-09T17:15')],
+      [task('a', { minutes: 15, splittable: false })],
+      ctx,
+    );
+    expect(result.issues).toEqual([]);
+  });
+
   it('rejects blocks of unknown tasks without affecting valid ones', () => {
     const result = validateAllocations(
       [

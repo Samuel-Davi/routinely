@@ -35,7 +35,9 @@ export type LlmErrorKind =
   | 'TIMEOUT'
   /** The model answered, but not with valid JSON for the schema. */
   | 'VALIDATION'
-  /** Missing API key, stub provider or transient vendor outage. */
+  /** Transient vendor failure (HTTP 5xx, model overloaded): worth retrying. */
+  | 'OVERLOADED'
+  /** Missing API key, rejected credentials or a stub provider. */
   | 'UNAVAILABLE'
   | 'PROVIDER';
 

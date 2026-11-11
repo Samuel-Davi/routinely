@@ -28,12 +28,19 @@ export interface HeuristicResult {
   unscheduled: EngineUnscheduled[];
 }
 
-/** Splitting first tries pieces of at least this size, to avoid 15 minute crumbs. */
-const PREFERRED_MIN_CHUNK_MS = 30 * MINUTE_MS;
+/** Pieces of a split task are at least this long, unless nothing else makes it fit. */
+export const PREFERRED_MIN_CHUNK_MINUTES = 30;
+const PREFERRED_MIN_CHUNK_MS = PREFERRED_MIN_CHUNK_MINUTES * MINUTE_MS;
+
+interface Placement {
+  blocks: EngineBlock[];
+  missingMinutes: number;
+}
 
 /**
- * Tries to place one task first-fit; returns its blocks or how many minutes did not
- * fit. A piece is never smaller than `minChunkMs`, except the last one of a task.
+ * Places one task first-fit; returns its blocks and how many minutes did not fit.
+ * A piece is never smaller than `minChunkMs` (except when the whole task is), and a
+ * block is shortened rather than leaving a tail below that minimum.
  */
 function placeTask(
   task: EngineTask,
@@ -41,7 +48,7 @@ function placeTask(
   maxBlockMs: number,
   breakMs: number,
   minChunkMs: number = GRID_MS,
-): { blocks: EngineBlock[]; missingMinutes: number } {
+): Placement {
   const blocks: EngineBlock[] = [];
   let remaining = task.minutes * MINUTE_MS;
 
@@ -49,10 +56,15 @@ function placeTask(
     const end = Math.min(window.end, Math.floor(task.deadline / GRID_MS) * GRID_MS);
     let cursor = window.start;
     while (remaining > 0 && end - cursor >= GRID_MS) {
-      const size = Math.min(remaining, maxBlockMs, end - cursor);
+      let size = Math.min(remaining, maxBlockMs, end - cursor);
       // An unsplittable task needs one window that takes it whole.
       if (!task.splittable && size < remaining) break;
       if (size < Math.min(minChunkMs, remaining)) break;
+      // 90 + 15 becomes 75 + 30: never leave a crumb as the last piece.
+      const tail = remaining - size;
+      if (tail > 0 && tail < minChunkMs && size - (minChunkMs - tail) >= minChunkMs) {
+        size -= minChunkMs - tail;
+      }
       blocks.push({
         taskId: task.id,
         start: cursor,
@@ -65,6 +77,95 @@ function placeTask(
     if (remaining === 0) break;
   }
   return { blocks, missingMinutes: remaining / MINUTE_MS };
+}
+
+/**
+ * Absorbs missing minutes by stretching blocks already placed into the free time
+ * right after them, up to the max focus block. Returns the minutes still missing.
+ * (Blocks always start at the beginning of their free window, so there is never
+ * room before them.)
+ */
+function growBlocks(
+  blocks: EngineBlock[],
+  missingMinutes: number,
+  task: EngineTask,
+  context: PlanningContext,
+  placed: readonly EngineBlock[],
+  maxBlockMs: number,
+): number {
+  let deficit = missingMinutes * MINUTE_MS;
+  const deadline = Math.floor(task.deadline / GRID_MS) * GRID_MS;
+  for (const block of blocks) {
+    const others = [...placed, ...blocks.filter((other) => other !== block)];
+    // The window that holds this block once its own footprint is removed.
+    const room = computeFreeWindows(context, others).find(
+      (window) => window.start <= block.start && window.end >= block.end,
+    ) as Interval;
+    const forward = Math.min(
+      deficit,
+      maxBlockMs - (block.end - block.start),
+      Math.min(room.end, deadline) - block.end,
+    );
+    block.end += forward;
+    deficit -= forward;
+  }
+  return deficit / MINUTE_MS;
+}
+
+/**
+ * Splits a task avoiding crumbs: pieces of 30+ minutes first, then stretching
+ * those pieces, and 15 minute pieces only for whatever still does not fit.
+ */
+function placeSplittable(
+  task: EngineTask,
+  context: PlanningContext,
+  placed: readonly EngineBlock[],
+  maxBlockMs: number,
+  breakMs: number,
+): Placement {
+  const windows = computeFreeWindows(context, placed);
+  // A task that fits in one focus block is kept whole when some window allows it.
+  if (task.minutes * MINUTE_MS <= maxBlockMs) {
+    const whole = placeTask({ ...task, splittable: false }, windows, maxBlockMs, breakMs);
+    if (whole.missingMinutes === 0) return whole;
+  }
+  const preferred = placeTask(task, windows, maxBlockMs, breakMs, PREFERRED_MIN_CHUNK_MS);
+  if (preferred.missingMinutes === 0) return preferred;
+
+  const blocks = preferred.blocks;
+  const missing = growBlocks(blocks, preferred.missingMinutes, task, context, placed, maxBlockMs);
+  // Only a shaved block can grow, and by less than what is missing, so there is
+  // always a remainder here: it goes to 15 minute pieces.
+  const crumbs = placeTask(
+    { ...task, minutes: missing },
+    computeFreeWindows(context, [...placed, ...blocks]),
+    maxBlockMs,
+    breakMs,
+  );
+  if (crumbs.missingMinutes === 0) {
+    return { blocks: [...blocks, ...crumbs.blocks], missingMinutes: 0 };
+  }
+  // Last resort: plain first-fit, which also yields the honest "missing" figure.
+  return placeTask(task, windows, maxBlockMs, breakMs);
+}
+
+/** Joins touching blocks of the same task when the result still fits one focus block. */
+export function mergeTouchingBlocks(
+  blocks: readonly EngineBlock[],
+  maxFocusBlockMinutes: number,
+): EngineBlock[] {
+  const merged: EngineBlock[] = [];
+  for (const block of [...blocks].sort((a, b) => a.start - b.start)) {
+    const previous = merged.find(
+      (candidate) =>
+        candidate.taskId === block.taskId &&
+        candidate.end === block.start &&
+        (block.end - candidate.start) / MINUTE_MS <= maxFocusBlockMinutes,
+    );
+    if (previous) previous.end = block.end;
+    else merged.push({ ...block });
+  }
+  return merged;
 }
 
 /**
@@ -105,21 +206,9 @@ export function scheduleHeuristic(
       });
       continue;
     }
-    const windows = computeFreeWindows(context, placed);
-    // A task that fits in one focus block is kept whole when some window allows it.
-    const whole =
-      task.splittable && task.minutes <= prefs.maxFocusBlockMinutes
-        ? placeTask({ ...task, splittable: false }, windows, maxBlockMs, breakMs)
-        : null;
-    const comfortable =
-      whole?.missingMinutes === 0
-        ? whole
-        : placeTask(task, windows, maxBlockMs, breakMs, PREFERRED_MIN_CHUNK_MS);
-    // Only fall back to 15 minute pieces when that is what makes the task fit.
-    const attempt =
-      comfortable.missingMinutes === 0
-        ? comfortable
-        : placeTask(task, windows, maxBlockMs, breakMs);
+    const attempt = task.splittable
+      ? placeSplittable(task, context, placed, maxBlockMs, breakMs)
+      : placeTask(task, computeFreeWindows(context, placed), maxBlockMs, breakMs);
     if (attempt.missingMinutes > 0) {
       unscheduled.push({
         taskId: task.id,
@@ -129,8 +218,9 @@ export function scheduleHeuristic(
       });
       continue;
     }
-    placed.push(...attempt.blocks);
-    blocks.push(...attempt.blocks);
+    const taskBlocks = mergeTouchingBlocks(attempt.blocks, prefs.maxFocusBlockMinutes);
+    placed.push(...taskBlocks);
+    blocks.push(...taskBlocks);
   }
 
   return { blocks: blocks.sort((a, b) => a.start - b.start), unscheduled };

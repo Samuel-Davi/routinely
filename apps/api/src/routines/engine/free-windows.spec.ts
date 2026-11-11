@@ -24,6 +24,20 @@ describe('computeFreeWindows', () => {
     ]);
   });
 
+  it('treats overlapping commitments as the union of their intervals', () => {
+    // Friday: Aula de Ética 16–18 overlaps Piola 17–19.
+    const friday = { rangeStart: '2026-11-13', rangeEnd: '2026-11-13' };
+    const commitments = [
+      { id: 'etica', daysOfWeek: [5], startTime: '16:00', endTime: '18:00' },
+      { id: 'piola', daysOfWeek: [5], startTime: '17:00', endTime: '19:00' },
+    ];
+    expect(format(computeFreeWindows(context({ ...friday, commitments })))).toEqual([
+      '2026-11-13T07:00–12:00',
+      '2026-11-13T13:00–16:00',
+      '2026-11-13T19:00–22:00',
+    ]);
+  });
+
   it('only applies commitments on their weekdays', () => {
     const saturday = { rangeStart: '2026-11-14', rangeEnd: '2026-11-14' };
     expect(format(computeFreeWindows(context({ ...saturday, commitments: workWeek })))).toEqual([

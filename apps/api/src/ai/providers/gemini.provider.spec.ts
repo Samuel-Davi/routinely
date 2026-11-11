@@ -93,7 +93,8 @@ describe('GeminiProvider', () => {
     [429, 'RATE_LIMIT'],
     [504, 'TIMEOUT'],
     [403, 'UNAVAILABLE'],
-    [503, 'UNAVAILABLE'],
+    [503, 'OVERLOADED'],
+    [500, 'OVERLOADED'],
     [400, 'PROVIDER'],
   ])('maps HTTP %i to %s without leaking the API key', async (status, kind) => {
     const { client } = fakeClient(apiError(status));
