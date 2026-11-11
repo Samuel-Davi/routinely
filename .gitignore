@@ -1,0 +1,15 @@
+node_modules
+dist
+.next
+out
+coverage
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+.claude/
+.agents/
+skills-lock.json
+graphify-out/
+next-env.d.ts
