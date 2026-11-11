@@ -6,3 +6,6 @@ pnpm-lock.yaml
 .claude
 apps/api/prisma/migrations
 .playwright-mcp
+scripts/*.playwright.js
+docs/screenshots
+backups

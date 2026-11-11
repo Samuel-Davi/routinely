@@ -14,3 +14,4 @@ skills-lock.json
 graphify-out/
 next-env.d.ts
 .playwright-mcp/
+backups/

@@ -1,0 +1,22 @@
+{
+  "measuredAt": "2026-11-11",
+  "tool": "scripts/ui-audit.playwright.js",
+  "totals": {
+    "smallTargets": 175,
+    "calendarBlocksUnder44": 14,
+    "tinyText": 139,
+    "movingUnderReducedMotion": 283
+  },
+  "perPage": [
+    "desktop /: targets 15, blocks 12, tiny 80, moving 49",
+    "desktop /tarefas: targets 30, blocks 0, tiny 0, moving 34",
+    "desktop /compromissos: targets 31, blocks 0, tiny 0, moving 35",
+    "desktop /historico: targets 12, blocks 0, tiny 0, moving 16",
+    "desktop /preferencias: targets 13, blocks 0, tiny 0, moving 18",
+    "mobile /: targets 8, blocks 2, tiny 39, moving 28",
+    "mobile /tarefas: targets 25, blocks 0, tiny 5, moving 34",
+    "mobile /compromissos: targets 26, blocks 0, tiny 5, moving 35",
+    "mobile /historico: targets 7, blocks 0, tiny 5, moving 16",
+    "mobile /preferencias: targets 8, blocks 0, tiny 5, moving 18"
+  ]
+}

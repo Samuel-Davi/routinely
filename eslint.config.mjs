@@ -13,6 +13,7 @@ export default tseslint.config(
       '**/next-env.d.ts',
       '.claude/**',
       'apps/web/**',
+      'scripts/*.playwright.js',
     ],
   },
   js.configs.recommended,
