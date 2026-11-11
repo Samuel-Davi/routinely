@@ -8,6 +8,7 @@ const config: Config = {
   moduleNameMapper: {
     '^@routinely/shared$': '<rootDir>/../../packages/shared/src/index.ts',
   },
+  setupFiles: ['<rootDir>/test/test-env.ts'],
   globalSetup: '<rootDir>/test/global-setup.ts',
   testTimeout: 30_000,
 };

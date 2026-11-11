@@ -2,8 +2,12 @@ import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { CommonModule } from './common/common.module';
 import { APP_CONFIG, ConfigModule, type AppConfig } from './config/config.module';
+import { FixedCommitmentsModule } from './fixed-commitments/fixed-commitments.module';
 import { HealthModule } from './health/health.module';
+import { PreferencesModule } from './preferences/preferences.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { TasksModule } from './tasks/tasks.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -36,7 +40,11 @@ import { PrismaModule } from './prisma/prisma.module';
     }),
     PrismaModule,
     CommonModule,
+    UsersModule,
     HealthModule,
+    FixedCommitmentsModule,
+    TasksModule,
+    PreferencesModule,
   ],
 })
 export class AppModule {}
