@@ -9,7 +9,14 @@ const config: Config = {
   moduleNameMapper: {
     '^@routinely/shared$': '<rootDir>/../../packages/shared/src/index.ts',
   },
-  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/main.ts', '!src/testing/**'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.spec.ts',
+    '!src/main.ts',
+    '!src/testing/**',
+    '!src/**/index.ts',
+    '!src/**/fixtures.ts',
+  ],
   coverageThreshold: {
     global: {},
     './src/routines/engine/': { statements: 95, branches: 90, functions: 95, lines: 95 },
