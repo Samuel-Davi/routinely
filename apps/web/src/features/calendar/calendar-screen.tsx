@@ -128,9 +128,10 @@ export function CalendarScreen({
         ? (emptyRoutine ?? (
             <EmptyState
               icon="sparkles"
+              compact
               title="Você ainda não tem uma rotina"
               description="Cadastre compromissos e tarefas e gere a rotina da semana."
-              className="mb-4 rounded-card bg-surface py-8 shadow-card"
+              className="mb-4 rounded-card bg-surface shadow-card"
             />
           ))
         : null}

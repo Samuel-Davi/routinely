@@ -34,3 +34,5 @@ afterEach(() => {
   localStorage.clear();
 });
 afterAll(() => server.close());
+Element.prototype.setPointerCapture ??= () => undefined;
+Element.prototype.releasePointerCapture ??= () => undefined;

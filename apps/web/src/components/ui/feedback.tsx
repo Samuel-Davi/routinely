@@ -23,12 +23,27 @@ interface EmptyStateProps {
   title: string;
   description: string;
   action?: ReactNode;
+  /** Less vertical padding, for use inside another surface. */
+  compact?: boolean;
   className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  compact,
+  className,
+}: EmptyStateProps) {
   return (
-    <div className={cn('flex flex-col items-center gap-3 px-6 py-14 text-center', className)}>
+    <div
+      className={cn(
+        'flex flex-col items-center gap-3 px-6 text-center',
+        compact ? 'py-8' : 'py-14',
+        className,
+      )}
+    >
       <span className="flex size-12 items-center justify-center rounded-full bg-fill text-label-secondary">
         <Icon name={icon} size={24} />
       </span>

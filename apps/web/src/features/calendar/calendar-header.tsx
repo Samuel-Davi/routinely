@@ -73,16 +73,17 @@ export function CalendarHeader({ weekDates, selectedDate, today, actions }: Cale
         </div>
 
         {/* On phones the calendar is always a day view; the switch is a desktop choice. */}
-        <SegmentedControl
-          label="Modo de visão"
-          className="hidden md:inline-flex"
-          value={viewMode}
-          onChange={(mode) => dispatch(viewModeChosen(mode))}
-          options={[
-            { value: 'week', label: 'Semana' },
-            { value: 'day', label: 'Dia' },
-          ]}
-        />
+        <div className="hidden md:block">
+          <SegmentedControl
+            label="Modo de visão"
+            value={viewMode}
+            onChange={(mode) => dispatch(viewModeChosen(mode))}
+            options={[
+              { value: 'week', label: 'Semana' },
+              { value: 'day', label: 'Dia' },
+            ]}
+          />
+        </div>
 
         <Button
           size="sm"
