@@ -12,6 +12,7 @@ import {
 } from '@routinely/shared';
 import { Clock } from '../common/clock';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiQuotaService } from './ai-quota.service';
 import { LlmClient } from './llm-client';
 import { isLlmError } from './llm-provider';
 import { loadPrompt, renderPrompt, sanitizeForPrompt } from './prompt-loader';
@@ -80,6 +81,7 @@ export class TaskEstimator {
     private readonly llm: LlmClient,
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
+    private readonly quota: AiQuotaService,
   ) {}
 
   async estimate(input: EstimateTaskInput): Promise<TaskEstimate> {
@@ -96,6 +98,12 @@ export class TaskEstimator {
         source: 'AI',
         cached: true,
       };
+    }
+
+    // Out of daily AI uses: keep the task plannable with the deterministic estimate.
+    if (!(await this.quota.consume(input.userId))) {
+      this.logger.warn('estimateTask: daily AI limit reached, using the heuristic');
+      return { ...heuristicEstimate(input), source: 'HEURISTIC', cached: false };
     }
 
     try {

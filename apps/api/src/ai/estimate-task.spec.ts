@@ -1,6 +1,7 @@
 import type { AppConfig } from '../config/config.module';
 import type { PrismaService } from '../prisma/prisma.service';
 import { FakeLlmProvider } from '../testing/fake-llm-provider';
+import type { AiQuotaService } from './ai-quota.service';
 import { TaskEstimator, estimateHash, heuristicEstimate, normalizeEstimate } from './estimate-task';
 import { LlmClient } from './llm-client';
 import { LlmError } from './llm-provider';
@@ -20,6 +21,8 @@ const answer = {
   rationale: 'Conteúdo denso.',
 };
 
+const quota = { allowed: true };
+
 function setup() {
   const provider = new FakeLlmProvider();
   const store = new Map<string, Record<string, unknown>>();
@@ -37,9 +40,12 @@ function setup() {
   return {
     provider,
     prisma,
-    estimator: new TaskEstimator(client, prisma as unknown as PrismaService, {
-      now: () => new Date('2026-11-10T12:00:00.000Z'),
-    }),
+    estimator: new TaskEstimator(
+      client,
+      prisma as unknown as PrismaService,
+      { now: () => new Date('2026-11-10T12:00:00.000Z') },
+      { consume: async () => quota.allowed } as unknown as AiQuotaService,
+    ),
   };
 }
 
@@ -101,6 +107,18 @@ describe('TaskEstimator', () => {
     expect(call?.prompt).toContain('Prazo (horário local): 2026-11-13T18:00');
     expect(call?.prompt).toContain('Agora (horário local): 2026-11-10T08:00');
     expect(prisma.estimateCache.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the heuristic, without calling the LLM, when the daily AI limit is reached', async () => {
+    const { estimator, provider } = setup();
+    quota.allowed = false;
+    try {
+      const estimate = await estimator.estimate(input);
+      expect(estimate).toMatchObject({ source: 'HEURISTIC', cached: false });
+      expect(provider.calls).toHaveLength(0);
+    } finally {
+      quota.allowed = true;
+    }
   });
 
   it('serves repeated tasks from the cache without calling the LLM', async () => {

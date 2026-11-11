@@ -30,7 +30,12 @@ export class PreferencesService {
 
   /** Stored preferences, or the defaults when the user never saved any. */
   async get(): Promise<Preferences> {
-    const row = await this.repository.find(this.currentUser.id);
+    return this.getFor(this.currentUser.id);
+  }
+
+  /** Same, for an explicit user: background jobs have no request to read the user from. */
+  async getFor(userId: string): Promise<Preferences> {
+    const row = await this.repository.find(userId);
     return row
       ? toPreferencesDto(row)
       : { ...DEFAULT_PREFERENCES, timezone: this.config.DEFAULT_TIMEZONE };

@@ -1,5 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
+import type { Express } from 'express';
+import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { APP_CONFIG, type AppConfig } from './config/config.module';
 
@@ -7,8 +10,14 @@ import { APP_CONFIG, type AppConfig } from './config/config.module';
 export function setupApp(app: INestApplication): void {
   const config = app.get<AppConfig>(APP_CONFIG);
   app.useGlobalFilters(new AllExceptionsFilter());
+  // Client IP for the auth rate limit: only trust X-Forwarded-For from this many proxies.
+  (app.getHttpAdapter().getInstance() as Express).set('trust proxy', config.TRUST_PROXY);
+  app.use(helmet());
+  app.use(cookieParser());
   app.enableCors({
+    // An explicit allow-list (never "*"): cookies are only sent to these origins.
     origin: config.CORS_ORIGINS,
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
   app.enableShutdownHooks();

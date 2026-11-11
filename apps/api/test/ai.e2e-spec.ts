@@ -1,10 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import { LLM_PROVIDER, LlmError } from '../src/ai/llm-provider';
 import type { PrismaService } from '../src/prisma/prisma.service';
 import { TaskEstimationWorker } from '../src/tasks/task-estimation.worker';
 import { FakeLlmProvider } from '../src/testing/fake-llm-provider';
-import { createTestApp, resetDatabase } from './test-app';
+import { asUser, createTestApp, resetDatabase, type HttpFn } from './test-app';
 
 const task = {
   title: 'Estudar para a prova',
@@ -24,12 +23,13 @@ describe('AI estimation (e2e, mocked LLM)', () => {
   let prisma: PrismaService;
   let worker: TaskEstimationWorker;
   const llm = new FakeLlmProvider();
-  const http = () => request(app.getHttpServer());
+  let http: HttpFn;
 
   beforeAll(async () => {
     ({ app, prisma } = await createTestApp((builder) =>
       builder.overrideProvider(LLM_PROVIDER).useValue(llm),
     ));
+    http = asUser(app);
     worker = app.get(TaskEstimationWorker);
   });
   beforeEach(async () => {

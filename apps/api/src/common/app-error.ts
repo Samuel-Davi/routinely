@@ -19,4 +19,14 @@ export class AppError extends Error {
   static conflict(code: string, message: string, details?: unknown): AppError {
     return new AppError(code, message, HttpStatus.CONFLICT, details);
   }
+
+  static unauthenticated(message = 'Faça login para continuar.'): AppError {
+    return new AppError('UNAUTHENTICATED', message, HttpStatus.UNAUTHORIZED);
+  }
+
+  static tooManyRequests(
+    message = 'Muitas tentativas. Tente novamente em alguns minutos.',
+  ): AppError {
+    return new AppError('RATE_LIMITED', message, HttpStatus.TOO_MANY_REQUESTS);
+  }
 }

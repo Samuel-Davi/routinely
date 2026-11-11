@@ -1,17 +1,17 @@
 import type { INestApplication } from '@nestjs/common';
 import { DEFAULT_PREFERENCES } from '@routinely/shared';
-import request from 'supertest';
 import type { PrismaService } from '../src/prisma/prisma.service';
 import { TaskEstimationWorker } from '../src/tasks/task-estimation.worker';
-import { createTestApp, resetDatabase } from './test-app';
+import { asUser, createTestApp, resetDatabase, type HttpFn } from './test-app';
 
 describe('CRUD endpoints (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  const http = () => request(app.getHttpServer());
+  let http: HttpFn;
 
   beforeAll(async () => {
     ({ app, prisma } = await createTestApp());
+    http = asUser(app);
   });
   beforeEach(async () => {
     // let background estimations of the previous test finish before truncating

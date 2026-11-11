@@ -58,7 +58,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # ─── migrate: one-shot job (migrations + idempotent seed), then exits ─────────
 # docker compose runs it before the API starts; on a platform it is the release command.
 FROM deps AS migrate
+# `claim-owner` (scripts/) validates with the shared zod schemas, so shared is built here too.
+COPY tsconfig.base.json ./
+COPY packages/shared packages/shared
+RUN pnpm --filter @routinely/shared build
 COPY apps/api/prisma apps/api/prisma
+COPY apps/api/scripts apps/api/scripts
 WORKDIR /repo/apps/api
 USER root
 CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node prisma/seed.mjs"]

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { AI_PLANNING_STRATEGIES, DEFAULT_TIMEZONE, isValidTimeZone } from '@routinely/shared';
 import { z } from 'zod';
 
@@ -9,7 +10,7 @@ const optionalSecret = z
   .optional()
   .transform((value) => (value && value.trim() !== '' ? value.trim() : undefined));
 
-export const envSchema = z.object({
+const baseEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -53,7 +54,39 @@ export const envSchema = z.object({
   LLM_BACKOFF_BASE_MS: z.coerce.number().int().min(0).default(1000),
   AI_RATE_LIMIT_TTL_MS: z.coerce.number().int().min(1000).default(60_000),
   AI_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(20),
+  /** AI uses (estimations, generations, replans) per user and UTC day, to protect the free quota. */
+  AI_DAILY_LIMIT: z.coerce.number().int().min(0).default(40),
+
+  /** Signs access tokens. Required in production (>= 32 chars); in dev a random one is used. */
+  JWT_SECRET: optionalSecret,
+  ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).default(30),
+  /** `Secure` cookies. Default: on in production only (plain-http dev servers would drop them). */
+  COOKIE_SECURE: z.enum(['true', 'false']).optional(),
+  /** Login/signup attempts per e-mail (twice that per IP) in each window. */
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(10),
+  AUTH_RATE_LIMIT_TTL_MS: z.coerce.number().int().min(1000).default(900_000),
+  /** Reverse proxies in front of the API whose X-Forwarded-For is trusted (for the client IP). */
+  TRUST_PROXY: z.coerce.number().int().min(0).default(0),
 });
+
+export const envSchema = baseEnvSchema
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production' && (!env.JWT_SECRET || env.JWT_SECRET.length < 32)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['JWT_SECRET'],
+        message:
+          'is required in production and must have at least 32 characters (openssl rand -base64 48)',
+      });
+    }
+  })
+  .transform((env) => ({
+    ...env,
+    // Without a configured secret (dev/test only) sessions last until the process restarts.
+    JWT_SECRET: env.JWT_SECRET ?? randomBytes(48).toString('base64url'),
+    COOKIE_SECURE: env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : env.NODE_ENV === 'production',
+  }));
 
 export type Env = z.infer<typeof envSchema>;
 

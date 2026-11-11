@@ -35,7 +35,7 @@ function setup(row: TaskRow | null = task) {
   const worker = new TaskEstimationWorker(
     tasks as unknown as TasksRepository,
     estimator as unknown as TaskEstimator,
-    { get: jest.fn().mockResolvedValue(DEFAULT_PREFERENCES) } as unknown as PreferencesService,
+    { getFor: jest.fn().mockResolvedValue(DEFAULT_PREFERENCES) } as unknown as PreferencesService,
   );
   return { worker, tasks, estimator };
 }

@@ -71,6 +71,14 @@ services:
       AI_PLANNING_STRATEGY: ${AI_PLANNING_STRATEGY:-order-day}
       AI_RATE_LIMIT_TTL_MS: ${AI_RATE_LIMIT_TTL_MS:-60000}
       AI_RATE_LIMIT_MAX: ${AI_RATE_LIMIT_MAX:-20}
+      AI_DAILY_LIMIT: ${AI_DAILY_LIMIT:-40}
+      # Required: signs the login tokens. Generate with: openssl rand -base64 48
+      JWT_SECRET: ${JWT_SECRET:-}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
     ports:
       - '${API_PORT:-3001}:3001'
     networks:

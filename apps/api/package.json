@@ -16,7 +16,8 @@
     "tasks:link": "dotenv -e ../../.env -- node scripts/link-tasks.mjs",
     "prisma:seed": "dotenv -e ../../.env -- prisma db seed",
     "postinstall": "prisma generate",
-    "eval:ai": "dotenv -e ../../.env -- tsx eval/run.ts"
+    "eval:ai": "dotenv -e ../../.env -- tsx eval/run.ts",
+    "claim-owner": "dotenv -e ../../.env -- node scripts/claim-owner.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"
@@ -26,12 +27,16 @@
     "@google/genai": "^3.0.0",
     "@nestjs/common": "^11.2.9",
     "@nestjs/core": "^11.2.9",
+    "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.2.9",
     "@nestjs/swagger": "^11.4.8",
     "@nestjs/throttler": "^6.7.1",
+    "@node-rs/argon2": "^2.2.2",
     "@prisma/client": "6.19.3",
     "@routinely/shared": "workspace:*",
+    "cookie-parser": "^1.4.7",
     "date-fns": "^4.4.0",
+    "helmet": "^8.3.0",
     "nestjs-pino": "^5.3.1",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
@@ -44,6 +49,7 @@
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.1.0",
     "@nestjs/testing": "^11.2.9",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.19.2",

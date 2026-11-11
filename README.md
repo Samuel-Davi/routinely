@@ -30,6 +30,22 @@ Na subida, o serviço `migrate` (um job que roda e sai) aplica as migrations e c
 
 A chave do Gemini é gratuita (sem billing): https://aistudio.google.com/apikey.
 
+### Primeiro acesso (login)
+
+A API exige login. Defina um segredo para os tokens no `.env` e, se você já tinha dados de antes do login, reivindique-os:
+
+```bash
+# 1. segredo dos tokens (obrigatório com docker compose / produção)
+echo "JWT_SECRET=$(openssl rand -base64 48)" >> .env
+
+# 2. (só se já havia dados) define e-mail e senha do dono dos dados atuais; a senha é pedida
+#    no terminal, sem eco
+docker compose run --rm -it migrate node scripts/claim-owner.mjs --email voce@exemplo.com
+#    sem Docker: pnpm --filter @routinely/api claim-owner -- --email voce@exemplo.com
+```
+
+Quem começa do zero apenas cria a conta na tela de cadastro (sem verificação de e-mail e sem OAuth no MVP).
+
 ### Desenvolvimento local (sem Docker para os apps)
 
 Pré-requisitos: Node 24 e pnpm 12.

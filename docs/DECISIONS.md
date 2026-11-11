@@ -138,6 +138,17 @@ Compromissos têm `requiresTravel` (padrão falso) e Ajustes tem `travelMinutes`
 - **Imagem da API:** 753 MB → 447 MB (medido com `docker images`). A CLI do Prisma passou a `devDependencies`; as migrations e o seed rodam num stage/serviço `migrate` (one-shot, `depends_on: service_completed_successfully`) e o runtime só leva `@prisma/client` + o query engine de biblioteca, sem a CLI, seus engines e o toolchain (`effect`, `typescript`…) e sem os bundles WASM de edge. A meta inicial de < 350 MB **não** foi atingida: a base `node:24-alpine` sozinha tem ~230 MB (o binário do Node tem 126 MB). Para ir além seria preciso empacotar o código (esbuild) ou trocar a base. Em PaaS, o `migrate` vira o _release command_.
 - **Logs:** `quietReqLogger` tira o objeto `req` das linhas de serviço e dos jobs em segundo plano.
 
+## ADR-023 — Autenticação própria (e-mail + senha) em vez de Supabase Auth
+
+- **Escolha:** autenticação na própria API NestJS. Senha com **argon2id** (`@node-rs/argon2`, 19 MiB / 2 passes / 1 lane, o mínimo recomendado pela OWASP). Sessão em **cookies httpOnly + SameSite=Lax + Secure** (Secure ligado em produção por padrão): um JWT de acesso curto (15 min, HS256, `typ=access`) e um **refresh token opaco e rotativo** (32 bytes aleatórios; só o SHA-256 vai ao banco). Reutilizar um refresh já usado é tratado como roubo e revoga a **família** inteira (todos os tokens daquele login). Logout revoga a família e limpa os cookies.
+- **Por que não Supabase Auth:** o banco é só Postgres (pode ser Supabase ou não, ADR-004); acoplar o login ao Supabase trocaria o provedor de dados por um provedor de identidade e quebraria o `docker compose` local sem internet. O custo é carregar a responsabilidade (hash, rotação, limites). Sem verificação de e-mail e sem OAuth no MVP: **próximo passo**.
+- **Guard global** (`JwtAuthGuard`): toda rota exige sessão, exceto as marcadas `@Public()` (`/health`, `/auth/register|login|refresh|logout`). O `userId` vem **só** do token verificado, via `AsyncLocalStorage` preenchido por um middleware; o `CurrentUser` lê dali. Nada no corpo, na query ou em header pode defini-lo. Jobs em segundo plano recebem o `userId` explicitamente (não há requisição).
+- **Isolamento:** todo repositório filtra por `userId`; recurso de outro usuário responde **404** (não 403), para não revelar que existe. Testes e2e com dois usuários cobrem todos os recursos e verbos (inclusive `userId` forjado no corpo, vínculo a compromisso alheio e retomada de jobs).
+- **Defesas:** rate limit de login/cadastro por e-mail (10 por 15 min) e por IP (o dobro), em memória e com mensagem genérica; erros genéricos (`E-mail ou senha incorretos.`, mesma resposta e mesmo custo para e-mail inexistente; cadastro duplicado não confirma que a conta existe); `helmet`; CORS com lista explícita de origens + `credentials`; força mínima de senha no zod compartilhado (≥ 10 caracteres, letra e número, não é comum nem um caractere repetido). `TRUST_PROXY` define quantos proxies confiáveis alimentam o `X-Forwarded-For` (necessário para o IP correto atrás do proxy do Next).
+- **Cota da IA por usuário:** `AI_DAILY_LIMIT` (40 por dia UTC, atômico no banco) conta estimativas e gerações. Passou do limite, o app **continua funcionando com o heurístico** (aviso "Limite diário de uso da IA atingido"). A chave do Gemini só existe no servidor.
+- **Dados existentes:** o usuário de seed vira o primeiro usuário com `claim-owner` (`pnpm --filter @routinely/api claim-owner -- --email ...`), que pede a senha no terminal, sem eco. Nada é perdido.
+- **Limites conhecidos:** o rate limit é por instância (em memória); os refresh tokens expirados são limpos de forma oportunista; sem recuperação de senha nem troca de senha na UI.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).
@@ -146,5 +157,5 @@ Compromissos têm `requiresTravel` (padrão falso) e Ajustes tem `travelMinutes`
 - **Imagem da API (447 MB):** ver ADR-022; a base do Node domina o tamanho.
 - **CI:** o workflow foi validado localmente (mesmos comandos e build das imagens), mas ainda não rodou no GitHub — o repositório não tem remoto configurado.
 - **Provedores Anthropic/Ollama:** stubs documentados, não implementados.
-- **Sem autenticação:** usuário único de seed; não exponha a API publicamente antes de adicionar login (ver `docs/SUPABASE.md`).
+- **Autenticação básica (ADR-023):** sem verificação de e-mail, sem recuperação de senha e sem OAuth; rate limit em memória (por instância).
 - **Drag & drop por toque:** usa pressionar-e-segurar (220 ms) para não brigar com o scroll; testado em emulação, não em aparelhos físicos.

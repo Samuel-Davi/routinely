@@ -10,7 +10,9 @@ import {
   moveBlockSchema,
   preferencesSchema,
   updateTaskSchema,
+  loginSchema,
   quickInstructionSchema,
+  registerSchema,
 } from '../index';
 
 const commitment = {
@@ -167,5 +169,29 @@ describe('quickInstructionSchema', () => {
     expect(generateRoutineInputSchema.safeParse({ instruction: 'x'.repeat(5000) }).success).toBe(
       false,
     );
+  });
+});
+
+describe('auth schemas', () => {
+  it('normalizes the e-mail and enforces password strength', () => {
+    const ok = registerSchema.parse({ email: '  Ana@Example.COM ', password: 'cavalo-azul-42' });
+    expect(ok.email).toBe('ana@example.com');
+    for (const password of [
+      'curta1',
+      'somenteletrasaqui',
+      '1234567890',
+      'aaaaaaaaaa1',
+      'Password123',
+    ]) {
+      expect(registerSchema.safeParse({ email: 'a@b.co', password }).success).toBe(false);
+    }
+    expect(
+      registerSchema.safeParse({ email: 'not-an-email', password: 'cavalo-azul-42' }).success,
+    ).toBe(false);
+  });
+
+  it('does not re-check strength at login', () => {
+    expect(loginSchema.safeParse({ email: 'a@b.co', password: 'x' }).success).toBe(true);
+    expect(loginSchema.safeParse({ email: 'a@b.co', password: '' }).success).toBe(false);
   });
 });

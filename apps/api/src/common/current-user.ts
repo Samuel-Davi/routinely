@@ -1,15 +1,18 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { APP_CONFIG, type AppConfig } from '../config/config.module';
+import { HttpStatus, Injectable } from '@nestjs/common';
+import { AppError } from './app-error';
+import { requestContext } from './request-context';
 
 /**
- * Resolves the acting user. The MVP has no login, so it always returns the seed
- * user; when Supabase Auth is added this becomes request-scoped and reads the JWT.
+ * The authenticated user of the current request, taken from the verified access token (see
+ * `AuthContextMiddleware`). Background jobs must receive the user id explicitly instead.
  */
 @Injectable()
 export class CurrentUser {
-  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
-
   get id(): string {
-    return this.config.DEFAULT_USER_ID;
+    const userId = requestContext.getStore()?.userId;
+    if (!userId) {
+      throw new AppError('UNAUTHENTICATED', 'Faça login para continuar.', HttpStatus.UNAUTHORIZED);
+    }
+    return userId;
   }
 }

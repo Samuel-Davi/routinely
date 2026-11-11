@@ -1,6 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
 import { fromLocalDateTime, type Routine } from '@routinely/shared';
-import request from 'supertest';
 import { LLM_PROVIDER } from '../src/ai/llm-provider';
 import { Clock } from '../src/common/clock';
 import { APP_CONFIG } from '../src/config/config.module';
@@ -9,7 +8,7 @@ import type { PrismaService } from '../src/prisma/prisma.service';
 import { RoutinesService } from '../src/routines/routines.service';
 import { TaskEstimationWorker } from '../src/tasks/task-estimation.worker';
 import { FakeLlmProvider } from '../src/testing/fake-llm-provider';
-import { createTestApp, resetDatabase } from './test-app';
+import { asUser, createTestApp, resetDatabase, type HttpFn } from './test-app';
 
 const TZ = 'America/Manaus';
 const iso = (local: string) => new Date(fromLocalDateTime(local, TZ)).toISOString();
@@ -19,7 +18,7 @@ describe('AI input budget (e2e, mocked LLM)', () => {
   let prisma: PrismaService;
   const llm = new FakeLlmProvider();
   const clock = { now: () => new Date(fromLocalDateTime('2026-11-09T06:00', TZ)) };
-  const http = () => request(app.getHttpServer());
+  let http: HttpFn;
 
   beforeAll(async () => {
     ({ app, prisma } = await createTestApp((builder) =>
@@ -32,6 +31,7 @@ describe('AI input budget (e2e, mocked LLM)', () => {
         .overrideProvider(APP_CONFIG)
         .useValue({ ...loadEnv(), LLM_MAX_INPUT_TOKENS: 500 }),
     ));
+    http = asUser(app);
   });
   afterAll(() => app.close());
 

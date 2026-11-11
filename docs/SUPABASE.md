@@ -45,19 +45,15 @@ datasource db {
 
 5. Suba a API apontando para o Supabase. Com Docker Compose, o serviço `db` deixa de ser necessário: sobrescreva `DATABASE_URL`/`DIRECT_URL` do serviço `api` (por exemplo, em um `docker-compose.override.yml`) e remova o `depends_on: db`.
 
-## Supabase Auth (próximo passo)
+## Autenticação
 
-O MVP não tem login, mas o modelo já está preparado:
+O login é da própria API (e-mail + senha, cookies httpOnly; ver ADR-023), **independente do Supabase**: o Supabase aqui é só o Postgres. Ao trocar para ele, nada muda no login. Pontos de atenção:
 
-- Toda tabela tem `userId` apontando para `User`. Hoje existe um único usuário de seed (`DEFAULT_USER_ID`).
-- A API resolve o usuário em um único lugar: `apps/api/src/common/current-user.ts`.
-
-Para habilitar o Supabase Auth:
-
-1. Faça o front enviar o JWT da sessão (`Authorization: Bearer <token>`) no cliente HTTP único (`apps/web/src/lib/api-client.ts`).
-2. Na API, adicione um guard que valide o JWT com o segredo/JWKS do projeto e torne `CurrentUser` _request-scoped_, lendo o `sub` do token.
-3. Crie o registro em `User` no primeiro acesso, usando o `sub` (UUID) como `id`.
-4. Opcional: ative _Row Level Security_ nas tabelas como defesa em profundidade. A API usa a _service role_ pela conexão do Prisma, então o RLS não substitui o filtro por `userId` que os repositórios já aplicam.
+- Toda tabela tem `userId`; a API filtra por ele em todos os repositórios, e o `userId` vem só do token verificado.
+- **A API agora exige sessão em todas as rotas** (exceto `/health` e `/auth/*`). Ainda assim, não exponha o Postgres, e deixe `CORS_ORIGINS` só com a origem do front.
+- Defina `JWT_SECRET` (≥ 32 caracteres, `openssl rand -base64 48`) e mantenha-o fora do git.
+- Para reivindicar os dados existentes (usuário de seed), rode `claim-owner` uma vez (ver README, "Primeiro acesso").
+- Row Level Security é opcional como defesa em profundidade: a API usa a conexão do Prisma (papel dono), então o RLS não substitui o filtro por `userId`.
 
 ## Observações
 

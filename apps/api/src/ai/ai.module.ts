@@ -3,6 +3,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import { AiThrottlerGuard } from './ai-throttler.guard';
 import { AiController } from './ai.controller';
+import { AiQuotaService } from './ai-quota.service';
 import { TaskEstimator } from './estimate-task';
 import { RoutineProposer } from './generate-routine';
 import { LLM_TIMING, LlmClient, defaultTiming } from './llm-client';
@@ -27,12 +28,14 @@ import { createLlmProvider } from './providers/create-provider';
     TaskEstimator,
     RoutineProposer,
     AiThrottlerGuard,
+    AiQuotaService,
   ],
   exports: [
     LlmClient,
     TaskEstimator,
     RoutineProposer,
     AiThrottlerGuard,
+    AiQuotaService,
     ThrottlerModule,
     LLM_PROVIDER,
   ],

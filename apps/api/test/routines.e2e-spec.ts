@@ -7,14 +7,13 @@ import {
   type Routine,
   type RoutineBlock,
 } from '@routinely/shared';
-import request from 'supertest';
 import { LLM_PROVIDER, LlmError } from '../src/ai/llm-provider';
 import { Clock } from '../src/common/clock';
 import type { PrismaService } from '../src/prisma/prisma.service';
 import { RoutinesService } from '../src/routines/routines.service';
 import { TaskEstimationWorker } from '../src/tasks/task-estimation.worker';
 import { FakeLlmProvider } from '../src/testing/fake-llm-provider';
-import { createTestApp, resetDatabase } from './test-app';
+import { asUser, createTestApp, resetDatabase, type HttpFn } from './test-app';
 
 const TZ = 'America/Manaus';
 const at = (local: string) => new Date(fromLocalDateTime(local, TZ));
@@ -49,7 +48,7 @@ describe('Routines (e2e, mocked LLM)', () => {
   let estimation: TaskEstimationWorker;
   const llm = new FakeLlmProvider();
   const clock = { current: at(MONDAY), now: () => clock.current };
-  const http = () => request(app.getHttpServer());
+  let http: HttpFn;
 
   /** Creates a task with a manual estimate so no LLM call is needed for it. */
   async function createTask(title: string, minutes: number, deadline: string, extra: object = {}) {
@@ -96,6 +95,7 @@ describe('Routines (e2e, mocked LLM)', () => {
     ({ app, prisma } = await createTestApp((builder) =>
       builder.overrideProvider(LLM_PROVIDER).useValue(llm).overrideProvider(Clock).useValue(clock),
     ));
+    http = asUser(app);
     routines = app.get(RoutinesService);
     estimation = app.get(TaskEstimationWorker);
   });

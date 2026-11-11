@@ -42,7 +42,7 @@ export class TaskEstimationWorker implements EstimationQueue, OnApplicationBoots
       if (!task || task.estimationStatus !== 'PENDING' || task.estimationSource === 'MANUAL')
         return;
 
-      const { timezone } = await this.preferences.get();
+      const { timezone } = await this.preferences.getFor(task.userId);
       const estimate = await this.estimator.estimate({
         userId: task.userId,
         title: task.title,

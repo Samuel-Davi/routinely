@@ -64,6 +64,9 @@ enum CommitmentCategory {
 model User {
   id                String   @id @default(uuid()) @db.Uuid
   name              String
+  // Login credentials. Null only for the pre-auth seed user until `claim-owner` is run.
+  email             String?  @unique
+  passwordHash      String?
   // Bumped whenever fixed commitments or preferences change (replan suggestion).
   scheduleChangedAt DateTime @default(now()) @db.Timestamptz(3)
   createdAt         DateTime @default(now()) @db.Timestamptz(3)
@@ -74,6 +77,36 @@ model User {
   routines         Routine[]
   routineBlocks    RoutineBlock[]
   estimateCache    EstimateCache[]
+  refreshTokens    RefreshToken[]
+  aiUsage          AiUsage[]
+}
+
+/// Rotating refresh tokens: only the SHA-256 hash is stored. A used token that shows up
+/// again means theft: the whole family (all tokens of that login) is revoked.
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  familyId   String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+/// AI uses per user and UTC day, to protect the free quota (AI_DAILY_LIMIT).
+model AiUsage {
+  userId String @db.Uuid
+  day    String
+  count  Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
 }
 
 model FixedCommitment {

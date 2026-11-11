@@ -19,6 +19,7 @@ import {
   type RoutineTrigger,
   type UnscheduledTask,
 } from '@routinely/shared';
+import { AiQuotaService } from '../ai/ai-quota.service';
 import { RoutineProposer, type RoutinePlanningInput } from '../ai/generate-routine';
 import { AppError } from '../common/app-error';
 import { Clock } from '../common/clock';
@@ -47,6 +48,8 @@ import { toBlockDto, toRoutineDto, toRoutineSummaryDto } from './routine.mapper'
 import { buildPlanningInput, buildProposeFn } from './ai-request';
 import { RoutinesRepository, type NewBlock, type RoutineWithBlocks } from './routines.repository';
 
+const QUOTA_NOTICE = 'Limite diário de uso da IA atingido. Rotina gerada sem IA.';
+
 /** An interrupted generation is resumed at most this many times. */
 export const MAX_RESUMES = 2;
 
@@ -65,6 +68,7 @@ export class RoutinesService implements OnApplicationBootstrap {
     private readonly currentUser: CurrentUser,
     private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly quota: AiQuotaService,
   ) {}
 
   /**
@@ -218,7 +222,7 @@ export class RoutinesService implements OnApplicationBootstrap {
   ): Promise<void> {
     try {
       const [prefs, commitments, allTasks, previous] = await Promise.all([
-        this.preferences.get(),
+        this.preferences.getFor(userId),
         this.commitments.findAll(userId),
         this.tasks.findAll(userId),
         this.repository.findActive(userId),
@@ -249,7 +253,9 @@ export class RoutinesService implements OnApplicationBootstrap {
       const context: PlanningContext = { prefs, commitments, ...range, now, fixedBlocks };
       const engineTasks = toEngineTasks(estimated, carried);
 
-      const useAi = this.proposer.isAvailable();
+      const aiAvailable = this.proposer.isAvailable();
+      // Over the daily budget the routine is still built, by the heuristic.
+      const useAi = aiAvailable && (await this.quota.consume(userId));
       const buildInput = buildPlanningInput(context, titles, commitmentOfTask, instruction);
       const { aiTasks, overflow } = useAi
         ? this.fitToBudget(engineTasks, buildInput)
@@ -264,13 +270,15 @@ export class RoutinesService implements OnApplicationBootstrap {
       // Tasks that did not fit the AI input budget are placed by the heuristic around the AI's blocks.
       const rest =
         overflow.length > 0 ? scheduleHeuristic(overflow, context, planned.blocks) : null;
-      const plan = rest
+      const withRest = rest
         ? {
             ...planned,
             blocks: [...planned.blocks, ...rest.blocks].sort((a, b) => a.start - b.start),
             unscheduled: [...planned.unscheduled, ...rest.unscheduled],
           }
         : planned;
+      const plan =
+        aiAvailable && !useAi && withRest.notice ? { ...withRest, notice: QUOTA_NOTICE } : withRest;
 
       const blocks: NewBlock[] = [
         ...carried.map((block) => ({
