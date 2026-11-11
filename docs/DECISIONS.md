@@ -168,6 +168,13 @@ O app pode ficar público sem expor a chave do Gemini nem a cota gratuita.
 - **Custo:** um salto a mais por requisição (front → API). Em testes locais a latência adicional é de poucos milissegundos; em deploy gratuito soma-se a latência entre as plataformas.
 - **Não verificado:** o comportamento dos cookies entre domínios reais (Vercel → Render) só poderá ser confirmado no deploy.
 
+## ADR-026 — Redesign por divulgação progressiva; toda ação com alvo de 44 px
+
+- **Um só caminho primário por tela.** O calendário tem uma barra com título, navegação e **uma** ação primária; tudo o mais (visão, filtros, replanejar) fica em um menu. Avisos viram uma faixa recolhível com contador; detalhes de tarefa (estimativa, justificativa da IA) ficam atrás de "Detalhes". Cor serve a um propósito: a prioridade é uma linha lateral fina e os compromissos fixos são neutros.
+- **Alvos de 44 px por construção**, não por remendo: todos os tamanhos de `Button`/`IconButton`/`SegmentedControl`/campos têm ≥ 44 px (em vez de pseudo-elementos que se sobrepõem em controles vizinhos). A exceção são os blocos do calendário, proporcionais à duração.
+- **Reduced motion zera transições e animações** (`transition-duration: 0.01ms`), e o menu/estados não dependem de movimento. A auditoria (`scripts/ui-audit.playwright.js`) mede alvos, texto < 12 px, movimento e rótulos duplicados de landmarks, antes e depois (`docs/DESIGN-NOTES.md`).
+- **Custo:** controles maiores ocupam mais espaço em barras densas (aceito: menos controles, mais respiro). O menu esconde "Replanejar"; a sugestão de replanejar continua visível na faixa de avisos.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).

@@ -7,7 +7,7 @@ import {
   quickInstructionSchema,
 } from '@routinely/shared';
 import { useState } from 'react';
-import { Banner, Button, Sheet, Textarea } from '@/components/ui';
+import { Banner, Button, MenuItem, Sheet, Textarea } from '@/components/ui';
 import { formatWeekRange } from '@/features/calendar/layout';
 import { AiPrivacyNotice } from '@/features/auth/ai-privacy-notice';
 import { useMe } from '@/features/auth/api';
@@ -21,7 +21,7 @@ interface RoutineActionsProps {
   pending: boolean;
 }
 
-/** "Gerar rotina" and "Replanejar", next to the calendar title. */
+/** The one primary action of the calendar: generate the routine ("Replanejar" lives in the menu). */
 export function RoutineActions({ hasRoutine, pending }: RoutineActionsProps) {
   const dispatch = useAppDispatch();
   const start = useStartRoutineJob();
@@ -29,29 +29,37 @@ export function RoutineActions({ hasRoutine, pending }: RoutineActionsProps) {
 
   return (
     <>
-      {hasRoutine ? (
-        <Button
-          icon="refresh"
-          loading={busy}
-          onClick={() => dispatch(panelOpened({ type: 'generate-routine', mode: 'replan' }))}
-        >
-          {busy ? 'Replanejando…' : 'Replanejar'}
-        </Button>
-      ) : null}
       <Button
-        variant={hasRoutine ? 'secondary' : 'primary'}
+        variant="primary"
         icon="sparkles"
-        loading={!hasRoutine && busy}
+        loading={busy}
         disabled={busy}
         onClick={() => dispatch(panelOpened({ type: 'generate-routine' }))}
       >
-        {!hasRoutine && busy ? 'Gerando…' : 'Gerar rotina'}
+        {busy ? (hasRoutine ? 'Atualizando…' : 'Gerando…') : 'Gerar rotina'}
       </Button>
       <GenerateRoutineSheet
         onGenerate={(input) => start.mutate({ kind: 'generate', input })}
         onReplan={(instruction) => start.mutate({ kind: 'replan', instruction })}
       />
     </>
+  );
+}
+
+/** "Replanejar" for the calendar's "more options" menu: only makes sense with a routine. */
+export function ReplanMenuItem({ pending, close }: { pending: boolean; close: () => void }) {
+  const dispatch = useAppDispatch();
+  return (
+    <MenuItem
+      icon="refresh"
+      disabled={pending}
+      onSelect={() => {
+        dispatch(panelOpened({ type: 'generate-routine', mode: 'replan' }));
+        close();
+      }}
+    >
+      Replanejar
+    </MenuItem>
   );
 }
 

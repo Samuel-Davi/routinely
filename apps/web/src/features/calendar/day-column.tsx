@@ -11,7 +11,7 @@ import {
 import type { ReactNode } from 'react';
 import { toneStyle } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { CATEGORY_LABEL, WEEKDAY_LONG, formatDate } from '@/lib/labels';
+import { WEEKDAY_LONG, formatDate } from '@/lib/labels';
 import {
   HOUR_HEIGHT,
   blocksForDay,
@@ -69,7 +69,7 @@ export function DayColumn({
       aria-label={dayLabel(date)}
       data-date={date}
       className={cn(
-        'relative min-w-0 flex-1 border-l border-separator first:border-l-0',
+        'relative min-w-0 flex-1 border-l border-hairline first:border-l-0',
         isToday && 'bg-accent/[0.03]',
       )}
       style={{ height: gridHeight(bounds) }}
@@ -77,27 +77,27 @@ export function DayColumn({
       {/* Hour lines */}
       <div aria-hidden="true" className="absolute inset-0">
         {Array.from({ length: hours }, (_, index) => (
-          <div key={index} className="border-t border-separator" style={{ height: HOUR_HEIGHT }} />
+          <div key={index} className="border-t border-hairline" style={{ height: HOUR_HEIGHT }} />
         ))}
       </div>
 
       {lunch ? (
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 flex items-center justify-center bg-fill text-[0.6875rem] font-medium text-label-tertiary"
+          className="absolute inset-x-0 flex items-center justify-center bg-fill/50 text-caption text-label-tertiary"
           style={{ top: lunch.top, height: lunch.height }}
         >
-          Almoço / descanso
+          {lunch.height >= 40 ? 'Almoço' : null}
         </div>
       ) : null}
 
       {travel ? (
         <div
           data-testid="travel-band"
-          className="absolute inset-x-0 flex items-center justify-center bg-fill text-caption text-label-tertiary"
+          className="absolute inset-x-0 flex items-center justify-center bg-fill/50 text-caption text-label-tertiary"
           style={{ top: travel.top, height: travel.height }}
         >
-          Deslocamento
+          {travel.height >= 28 ? 'Deslocamento' : <span className="sr-only">Deslocamento</span>}
         </div>
       ) : null}
 
@@ -106,15 +106,17 @@ export function DayColumn({
           <li
             key={commitment.id}
             style={{ ...toneStyle(commitment.color), top: top + 1, height: height - 2 }}
-            className="tone-surface absolute inset-x-1 overflow-hidden rounded-[0.5rem] border border-dashed border-[color-mix(in_srgb,var(--tone)_40%,transparent)] px-2 py-1"
+            // Fixed commitments recede: neutral, low contrast, only a small tint dot for category.
+            className="absolute inset-x-1 overflow-hidden rounded-[0.5rem] bg-fill/70 px-2 py-1"
           >
             <span className="sr-only">Compromisso fixo: </span>
-            <span className="block truncate text-caption font-semibold text-label">
-              {commitment.title}
+            <span className="flex items-center gap-1.5 truncate text-caption font-medium text-label-secondary">
+              <span aria-hidden="true" className="tone-solid size-1.5 shrink-0 rounded-full" />
+              <span className="truncate">{commitment.title}</span>
             </span>
-            {height >= 40 ? (
-              <span className="block truncate text-[0.6875rem] tabular-nums opacity-90">
-                {commitment.startTime}–{commitment.endTime} · {CATEGORY_LABEL[commitment.category]}
+            {height >= 44 ? (
+              <span className="block truncate text-caption tabular-nums text-label-tertiary">
+                {commitment.startTime}–{commitment.endTime}
               </span>
             ) : null}
           </li>

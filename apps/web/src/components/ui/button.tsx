@@ -13,11 +13,11 @@ const VARIANTS: Record<Variant, string> = {
   danger: 'bg-fill text-danger hover:bg-fill-strong',
 };
 
-// 44px is the minimum comfortable touch target; `sm` is for dense desktop toolbars.
+// Every size is at least 44px tall (Apple's minimum touch target); sizes differ by type and padding.
 const SIZES: Record<Size, string> = {
-  sm: 'h-8 px-3 text-footnote gap-1.5',
-  md: 'h-10 px-4 text-body gap-2',
-  lg: 'h-11 px-5 text-body gap-2',
+  sm: 'h-11 px-3.5 text-footnote gap-1.5',
+  md: 'h-11 px-4 text-body gap-2',
+  lg: 'h-12 px-5 text-body gap-2',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -89,7 +89,7 @@ export function IconButton({
       className={cn(
         'pressable inline-flex shrink-0 items-center justify-center rounded-full text-label-secondary hover:bg-fill hover:text-label',
         'disabled:cursor-not-allowed disabled:opacity-40',
-        size === 'sm' ? 'size-8' : 'size-10',
+        'size-11',
         className,
       )}
       {...props}

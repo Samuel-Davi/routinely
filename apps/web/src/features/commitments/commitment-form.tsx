@@ -161,7 +161,7 @@ export function CommitmentFormSheet({ open, onClose, commitment }: CommitmentFor
                         )
                       }
                       className={cn(
-                        'pressable h-10 flex-1 rounded-control text-footnote font-medium',
+                        'pressable h-11 flex-1 rounded-control text-footnote font-medium',
                         selected
                           ? 'bg-accent text-on-accent'
                           : 'bg-fill text-label-secondary hover:bg-fill-strong',
@@ -248,7 +248,7 @@ export function CommitmentFormSheet({ open, onClose, commitment }: CommitmentFor
                     onClick={() => field.onChange(color)}
                     style={toneStyle(color)}
                     className={cn(
-                      'pressable tone-solid size-9 rounded-full ring-offset-2 ring-offset-surface-raised',
+                      'pressable tone-solid size-11 rounded-full ring-offset-2 ring-offset-surface-raised',
                       field.value === color && 'ring-2 ring-label',
                     )}
                   />

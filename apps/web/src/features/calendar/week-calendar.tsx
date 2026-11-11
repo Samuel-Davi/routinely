@@ -62,10 +62,10 @@ export function WeekCalendar({
   const dayMode = viewMode === 'day';
 
   return (
-    <div className="rounded-card bg-surface shadow-card">
+    <div className="rounded-card bg-surface shadow-[0_0_0_1px_var(--hairline)]">
       {dayMode ? null : (
         <div
-          className="sticky top-(--nav-height) z-20 flex rounded-t-card border-b border-separator bg-surface pl-12"
+          className="sticky top-(--nav-height) z-20 flex rounded-t-card border-b border-hairline bg-surface pl-12"
           aria-hidden="true"
         >
           {dates.map((date) => {
@@ -74,7 +74,7 @@ export function WeekCalendar({
             return (
               <div
                 key={date}
-                className="flex min-w-0 flex-1 items-baseline justify-center gap-1.5 border-l border-separator py-2 first:border-l-0"
+                className="flex min-w-0 flex-1 items-baseline justify-center gap-1.5 border-l border-hairline py-2 first:border-l-0"
               >
                 <span className="text-footnote font-medium text-label-secondary">
                   {WEEKDAY_SHORT[dow]}
@@ -105,7 +105,7 @@ export function WeekCalendar({
             .map((hour, index) => (
               <span
                 key={hour}
-                className="absolute right-2 -translate-y-1/2 text-[0.6875rem] text-label-tertiary tabular-nums first:translate-y-0.5"
+                className="absolute right-2 -translate-y-1/2 text-caption text-label-tertiary tabular-nums first:translate-y-0.5"
                 style={{ top: index * HOUR_HEIGHT }}
               >
                 {String(hour).padStart(2, '0')}:00

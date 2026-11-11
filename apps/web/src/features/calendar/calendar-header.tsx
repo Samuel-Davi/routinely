@@ -2,7 +2,7 @@
 
 import type { DateString } from '@routinely/shared';
 import type { ReactNode } from 'react';
-import { Button, IconButton, SegmentedControl } from '@/components/ui';
+import { Button, IconButton, Menu, MenuItem, MenuSeparator } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { WEEKDAY_SHORT, formatDate } from '@/lib/labels';
 import {
@@ -22,11 +22,19 @@ interface CalendarHeaderProps {
   weekDates: readonly DateString[];
   selectedDate: DateString;
   today: DateString;
-  /** Routine actions (generate / replan), provided by the routine feature. */
+  /** The one primary action (generate), provided by the routine feature. */
   actions?: ReactNode;
+  /** Secondary actions (replan…) for the "more options" menu. */
+  menuItems?: (close: () => void) => ReactNode;
 }
 
-export function CalendarHeader({ weekDates, selectedDate, today, actions }: CalendarHeaderProps) {
+export function CalendarHeader({
+  weekDates,
+  selectedDate,
+  today,
+  actions,
+  menuItems,
+}: CalendarHeaderProps) {
   const dispatch = useAppDispatch();
   const viewMode = useAppSelector(selectViewMode);
   const filterCount = useAppSelector(selectActiveFilterCount);
@@ -39,60 +47,78 @@ export function CalendarHeader({ weekDates, selectedDate, today, actions }: Cale
 
   return (
     <div className="mb-4 flex flex-col gap-3">
+      {/* One bar: where I am, how to move, the one thing to do, and everything else in a menu. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="mr-auto text-title font-bold sm:text-display" aria-live="polite">
           {dayMode
             ? formatDate(selectedDate, { day: 'numeric', month: 'long' })
             : formatWeekRange(weekDates)}
         </h1>
-        {actions}
-      </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center rounded-control bg-fill">
+        <div className="flex items-center rounded-full bg-fill">
           <IconButton
             icon="chevron-left"
-            size="sm"
             label={dayMode ? 'Dia anterior' : 'Semana anterior'}
             onClick={() => shift(-1)}
           />
           <Button
             size="sm"
             variant="ghost"
-            className="text-label"
+            className="px-2 text-label"
             onClick={() => dispatch(dateSelected(today))}
           >
             Hoje
           </Button>
           <IconButton
             icon="chevron-right"
-            size="sm"
             label={dayMode ? 'Próximo dia' : 'Próxima semana'}
             onClick={() => shift(1)}
           />
         </div>
 
-        {/* On phones the calendar is always a day view; the switch is a desktop choice. */}
-        <div className="hidden md:block">
-          <SegmentedControl
-            label="Modo de visão"
-            value={viewMode}
-            onChange={(mode) => dispatch(viewModeChosen(mode))}
-            options={[
-              { value: 'week', label: 'Semana' },
-              { value: 'day', label: 'Dia' },
-            ]}
-          />
-        </div>
+        {actions}
 
-        <Button
-          size="sm"
-          icon="filter"
-          className="ml-auto"
-          onClick={() => dispatch(panelOpened({ type: 'calendar-filters' }))}
-        >
-          Filtros{filterCount > 0 ? ` (${filterCount})` : ''}
-        </Button>
+        <Menu label="Mais opções" indicator={filterCount > 0}>
+          {(close) => (
+            <>
+              {/* On phones the calendar is always a day view; the switch is a desktop choice. */}
+              <div className="hidden md:block" role="group" aria-label="Modo de visão">
+                <MenuItem
+                  icon="calendar"
+                  checked={viewMode === 'week'}
+                  onSelect={() => {
+                    dispatch(viewModeChosen('week'));
+                    close();
+                  }}
+                >
+                  Visão semanal
+                </MenuItem>
+                <MenuItem
+                  icon="clock"
+                  checked={viewMode === 'day'}
+                  onSelect={() => {
+                    dispatch(viewModeChosen('day'));
+                    close();
+                  }}
+                >
+                  Visão diária
+                </MenuItem>
+                <MenuSeparator />
+              </div>
+              <MenuItem
+                icon="filter"
+                detail={filterCount > 0 ? String(filterCount) : undefined}
+                onSelect={() => {
+                  dispatch(panelOpened({ type: 'calendar-filters' }));
+                  close();
+                }}
+              >
+                Filtros
+              </MenuItem>
+              {menuItems?.(close)}
+            </>
+          )}
+        </Menu>
       </div>
 
       {dayMode ? (
@@ -123,7 +149,7 @@ export function CalendarHeader({ weekDates, selectedDate, today, actions }: Cale
                   selected ? 'bg-accent text-on-accent' : 'text-label-secondary hover:bg-fill',
                 )}
               >
-                <span className="text-[0.6875rem] font-medium">{WEEKDAY_SHORT[dow]}</span>
+                <span className="text-caption font-medium">{WEEKDAY_SHORT[dow]}</span>
                 <span
                   className={cn(
                     'text-headline font-semibold tabular-nums',

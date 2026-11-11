@@ -121,7 +121,8 @@ describe('CalendarScreen', () => {
     const { store } = renderWithProviders(<CalendarScreen />);
     await screen.findByRole('heading', { level: 1 });
 
-    await userEvent.click(screen.getByRole('radio', { name: 'Dia' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mais opções' }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Visão diária' }));
     expect(screen.getAllByRole('region')).toHaveLength(1);
     expect(screen.getByRole('region', { name: 'terça-feira, 10 de novembro' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('10 de novembro');
@@ -163,7 +164,8 @@ describe('CalendarScreen', () => {
       await screen.findByRole('button', { name: /Revisar relatório.*concluído/ }),
     ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mais opções' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Filtros' }));
     const dialog = await screen.findByRole('dialog', { name: 'Filtros' });
     await userEvent.click(
       within(dialog).getByRole('switch', { name: 'Mostrar blocos concluídos' }),
@@ -180,7 +182,9 @@ describe('CalendarScreen', () => {
       ).not.toBeInTheDocument(),
     );
     await userEvent.click(within(dialog).getByRole('button', { name: 'Concluir' }));
-    expect(await screen.findByRole('button', { name: 'Filtros (2)' })).toBeInTheDocument();
+    // the menu shows how many filters are on (and the trigger carries a dot)
+    await userEvent.click(screen.getByRole('button', { name: 'Mais opções' }));
+    expect(await screen.findByRole('menuitem', { name: /^Filtros\s*2$/ })).toBeInTheDocument();
   });
 
   it('explains when there is no routine yet, still showing commitments', async () => {

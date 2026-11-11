@@ -30,7 +30,7 @@ export function TopNavLinks() {
               href={href}
               aria-current={current ? 'page' : undefined}
               className={cn(
-                'pressable flex h-8 items-center rounded-full px-3 text-footnote font-medium',
+                'pressable flex h-11 items-center rounded-full px-3.5 text-footnote font-medium',
                 current ? 'bg-fill text-label' : 'text-label-secondary hover:text-label',
               )}
             >
@@ -56,7 +56,7 @@ export function TabBarLinks() {
               href={href}
               aria-current={current ? 'page' : undefined}
               className={cn(
-                'pressable flex h-full flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-medium tracking-[0.01em]',
+                'pressable flex h-full flex-col items-center justify-center gap-0.5 text-caption font-medium tracking-[0.01em]',
                 current ? 'text-accent-text' : 'text-label-secondary',
               )}
             >

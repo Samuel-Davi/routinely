@@ -48,15 +48,19 @@ export function TaskBlockView({
     <div
       style={{ ...toneStyle(conflict ? 'red' : PRIORITY_TONE[block.task.priority]), ...style }}
       className={cn(
-        'tone-surface relative flex h-full w-full overflow-hidden rounded-[0.5rem] pl-2.5 text-left',
+        // A quiet card: the priority is only the thin line on the left, not a coloured fill.
+        'relative flex h-full w-full overflow-hidden rounded-[0.5rem] bg-surface-raised pl-3 text-left shadow-[0_0_0_1px_var(--hairline)]',
         compact ? 'items-center gap-1.5 pr-1.5' : 'flex-col gap-0.5 py-1 pr-1.5',
-        done && 'opacity-60',
+        done && 'opacity-55',
         dragging && 'shadow-float',
         conflict && 'outline-2 outline-danger',
         className,
       )}
     >
-      <span aria-hidden="true" className="tone-solid absolute inset-y-0 left-0 w-1" />
+      <span
+        aria-hidden="true"
+        className="tone-solid absolute inset-y-1 left-1 w-[3px] rounded-full"
+      />
       <span
         className={cn(
           'min-w-0 truncate text-caption font-semibold text-label',
@@ -64,13 +68,13 @@ export function TaskBlockView({
         )}
       >
         {done ? (
-          <Icon name="check" size={11} strokeWidth={3} className="mr-1 inline align-[-1px]" />
+          <Icon name="check" size={12} strokeWidth={3} className="mr-1 inline align-[-1px]" />
         ) : null}
         {block.task.title}
       </span>
-      <span className="flex shrink-0 items-center gap-1 text-[0.6875rem] tabular-nums opacity-90">
+      <span className="flex shrink-0 items-center gap-1 text-caption tabular-nums text-label-secondary">
         {formatTime(start, timezone)}–{formatTime(end, timezone)}
-        {block.locked ? <Icon name="lock" size={10} strokeWidth={2.5} /> : null}
+        {block.locked ? <Icon name="lock" size={12} strokeWidth={2.5} /> : null}
       </span>
     </div>
   );

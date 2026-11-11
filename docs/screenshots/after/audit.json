@@ -1,0 +1,25 @@
+{
+  "measuredAt": "2026-11-11",
+  "tool": "scripts/ui-audit.playwright.js",
+  "stack": "production build served by `next start`, demo account, test database",
+  "totals": {
+    "smallTargets": 0,
+    "calendarBlocksUnder44": 6,
+    "tinyText": 0,
+    "movingUnderReducedMotion": 0,
+    "duplicateNavLabels": 0
+  },
+  "perPage": [
+    "desktop /: targets 0, blocks 6, tiny 0, moving 0",
+    "desktop /tarefas: targets 0, blocks 0, tiny 0, moving 0",
+    "desktop /compromissos: targets 0, blocks 0, tiny 0, moving 0",
+    "desktop /historico: targets 0, blocks 0, tiny 0, moving 0",
+    "desktop /preferencias: targets 0, blocks 0, tiny 0, moving 0",
+    "mobile /: targets 0, blocks 0, tiny 0, moving 0",
+    "mobile /tarefas: targets 0, blocks 0, tiny 0, moving 0",
+    "mobile /compromissos: targets 0, blocks 0, tiny 0, moving 0",
+    "mobile /historico: targets 0, blocks 0, tiny 0, moving 0",
+    "mobile /preferencias: targets 0, blocks 0, tiny 0, moving 0"
+  ],
+  "note": "The 'before' run measured the real data of the author; this one the demo account. Counts of calendar blocks and task cards depend on the data, so compare the per-element rules (targets, text, motion), not the raw number of blocks."
+}

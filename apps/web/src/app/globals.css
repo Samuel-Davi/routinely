@@ -16,6 +16,8 @@
   --label-secondary: #636366;
   --label-tertiary: #7c7c80;
   --separator: rgb(60 60 67 / 0.14);
+  /* Hairline: the calendar grid and card edges recede behind the content */
+  --hairline: rgb(60 60 67 / 0.08);
   --accent: #0066cc;
   --accent-hover: #0058b0;
   --accent-text: #0066cc;
@@ -55,6 +57,7 @@
     --label-secondary: #aeaeb2;
     --label-tertiary: #8e8e93;
     --separator: rgb(84 84 88 / 0.6);
+    --hairline: rgb(84 84 88 / 0.35);
     --accent: #0071e3;
     --accent-hover: #0a7ff5;
     --accent-text: #4da3ff;
@@ -89,6 +92,7 @@
   --color-label-secondary: var(--label-secondary);
   --color-label-tertiary: var(--label-tertiary);
   --color-separator: var(--separator);
+  --color-hairline: var(--hairline);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-text: var(--accent-text);
@@ -116,6 +120,7 @@
   --text-caption: 0.75rem;
   --text-caption--line-height: 1rem;
   --text-caption--letter-spacing: 0.01em;
+  /* Nothing in the UI is smaller than caption (12px); body copy is 15px. */
   --text-footnote: 0.8125rem;
   --text-footnote--line-height: 1.125rem;
   --text-footnote--letter-spacing: 0.005em;
@@ -186,6 +191,10 @@
     background: var(--tone);
   }
 
+  .tone-text {
+    color: var(--tone);
+  }
+
   /* Feedback lives on the press, and it is instant. */
   .pressable {
     transition:
@@ -233,6 +242,9 @@
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    /* Transitions too: nothing may keep moving (colour/opacity feedback is instant instead). */
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
   .pressable:active:not(:disabled) {

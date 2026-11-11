@@ -17,13 +17,28 @@ const renderCard = (task = makeTask(), props = handlers(), commitmentTitle?: str
 };
 
 describe('TaskCard', () => {
-  it('shows the task, its priority, status and local deadline', () => {
+  const openDetails = () => userEvent.click(screen.getByRole('button', { name: /Detalhes/ }));
+
+  it('shows only what is needed to scan the list: title, priority and local deadline', () => {
     renderCard();
     expect(screen.getByRole('heading', { name: 'Preparar apresentação' })).toBeInTheDocument();
     expect(screen.getByText('Alta')).toBeInTheDocument();
-    expect(screen.getByText('A fazer')).toBeInTheDocument();
     // 22:00Z is 18:00 in Manaus
     expect(screen.getByText(/18:00/)).toBeInTheDocument();
+    // status, effort and reasoning stay out of sight until asked for
+    expect(screen.queryByText('A fazer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Estimado por IA')).not.toBeInTheDocument();
+    expect(screen.queryByText('Exige pesquisa e revisão.')).not.toBeInTheDocument();
+  });
+
+  it('opens the status in the details', async () => {
+    renderCard();
+    await openDetails();
+    expect(screen.getByText('A fazer')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Detalhes/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
   });
 
   it('shows a chip with the linked commitment only when there is one', () => {
@@ -36,8 +51,9 @@ describe('TaskCard', () => {
     expect(screen.queryByText('Web Academy')).not.toBeInTheDocument();
   });
 
-  it('shows the AI estimate with its rationale', () => {
+  it('shows the AI estimate with its rationale in the details', async () => {
     renderCard();
+    await openDetails();
     expect(screen.getByText('3h')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Complexidade 4 de 5' })).toBeInTheDocument();
     expect(screen.getByText('Divisível')).toBeInTheDocument();
@@ -58,8 +74,9 @@ describe('TaskCard', () => {
     expect(screen.queryByText('Estimado por IA')).not.toBeInTheDocument();
   });
 
-  it('labels manual and heuristic estimates', () => {
+  it('labels manual and heuristic estimates', async () => {
     renderCard(makeTask({ estimationSource: 'MANUAL', aiRationale: null, splittable: false }));
+    await openDetails();
     expect(screen.getByText('Ajustado por você')).toBeInTheDocument();
     expect(screen.getByText('Bloco único')).toBeInTheDocument();
   });
@@ -81,9 +98,10 @@ describe('TaskCard', () => {
     expect(props.onToggleDone).toHaveBeenCalledWith(task);
   });
 
-  it('renders a completed task without the estimate', () => {
+  it('renders a completed task without the estimate status', async () => {
     renderCard(makeTask({ status: 'DONE' }));
     expect(screen.getByRole('checkbox', { name: 'Reabrir Preparar apresentação' })).toBeChecked();
+    await openDetails();
     expect(screen.getByText('Concluída')).toBeInTheDocument();
     expect(screen.queryByText('Estimado por IA')).not.toBeInTheDocument();
   });

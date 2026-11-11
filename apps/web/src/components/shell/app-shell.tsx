@@ -21,7 +21,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           aria-label="Principal"
           className="mx-auto flex h-(--nav-height) max-w-7xl items-center gap-6 px-4 sm:px-6"
         >
-          <Link href="/" className="text-headline font-semibold tracking-tight">
+          <Link
+            href="/"
+            className="flex h-11 items-center text-headline font-semibold tracking-tight"
+          >
             Routinely
           </Link>
           <div className="hidden md:block">
@@ -37,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <nav
-        aria-label="Principal"
+        aria-label="Abas"
         className="material fixed inset-x-0 bottom-0 z-40 border-t border-separator pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         <TabBarLinks />

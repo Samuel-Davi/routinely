@@ -11,7 +11,7 @@ import { panelOpened } from '@/lib/store/ui-slice';
 import { useActiveRoutine, useRoutineJob } from './api';
 import { BlockDetailsSheet } from './block-details-sheet';
 import { DraggableBlock } from './draggable-block';
-import { RoutineActions } from './routine-actions';
+import { ReplanMenuItem, RoutineActions } from './routine-actions';
 import { DayDropZone, RoutineDndProvider } from './routine-dnd';
 import { RoutineNotices } from './routine-notices';
 
@@ -31,6 +31,9 @@ export function WeekScreen() {
   return (
     <CalendarScreen
       actions={<RoutineActions hasRoutine={Boolean(routine.data)} pending={pending} />}
+      menuItems={(close) =>
+        routine.data ? <ReplanMenuItem pending={pending} close={close} /> : null
+      }
       notices={
         pending || routine.data ? (
           <RoutineNotices routine={routine.data ?? null} pending={pending} />

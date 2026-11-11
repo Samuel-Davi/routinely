@@ -18,8 +18,10 @@ import { useNow, useResponsiveViewMode, useToday } from './use-calendar-clock';
 import { WeekCalendar } from './week-calendar';
 
 export interface CalendarSlots {
-  /** Buttons shown next to the title (generate / replan). */
+  /** The primary action shown next to the title (generate). */
   actions?: ReactNode;
+  /** Secondary actions, inside the "more options" menu. */
+  menuItems?: (close: () => void) => ReactNode;
   /** Banners between the header and the grid (AI notice, replan suggestion…). */
   notices?: ReactNode;
   /** Shown instead of the default hint when there is no routine yet. */
@@ -35,7 +37,7 @@ function CalendarSkeleton() {
   return (
     <LoadingRegion label="Carregando calendário">
       <Skeleton className="mb-4 h-9 w-64" />
-      <Skeleton className="mb-4 h-8 w-full max-w-md" />
+      <Skeleton className="mb-4 h-11 w-full max-w-md" />
       <Skeleton className="h-[32rem] rounded-card" />
     </LoadingRegion>
   );
@@ -44,6 +46,7 @@ function CalendarSkeleton() {
 /** Weekly calendar screen: fixed commitments plus the active routine's blocks. */
 export function CalendarScreen({
   actions,
+  menuItems,
   notices,
   emptyRoutine,
   renderBlock,
@@ -122,6 +125,7 @@ export function CalendarScreen({
         selectedDate={selectedDate}
         today={today}
         actions={actions}
+        menuItems={menuItems}
       />
       {notices ? <div className="mb-4 flex flex-col gap-2">{notices}</div> : null}
       {routine.data === null

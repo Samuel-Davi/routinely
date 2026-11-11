@@ -59,7 +59,7 @@ export function CalendarFiltersSheet() {
                   onClick={() => dispatch(priorityFilterToggled(priority))}
                   style={toneStyle(PRIORITY_TONE[priority])}
                   className={cn(
-                    'pressable h-9 rounded-full px-3.5 text-footnote font-medium',
+                    'pressable h-11 rounded-full px-4 text-footnote font-medium',
                     selected ? 'tone-solid text-surface' : 'tone-surface',
                   )}
                 >

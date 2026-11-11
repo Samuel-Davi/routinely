@@ -1,6 +1,9 @@
 /**
  * UI audit used to compare the interface before and after a design change.
  *
+ * The app requires a login: start a throwaway stack with the demo account enabled
+ * (`pnpm demo:reset`, DEMO_ENABLED=true) and point BASE at it. The script enters as demo.
+ *
  * It is a Playwright page function (no dependency in this repo): run it with the
  * Playwright MCP tool `browser_run_code_unsafe` passing this file as `filename`,
  * or paste it into any Playwright script as `await audit(page)`.
@@ -12,7 +15,7 @@
  *  - elements that still animate or transition under `prefers-reduced-motion`.
  */
 async (page) => {
-  const BASE = 'http://localhost:3000';
+  const BASE = 'http://localhost:3100';
   const PAGES = ['/', '/tarefas', '/compromissos', '/historico', '/preferencias'];
   const VIEWPORTS = [
     { name: 'desktop', width: 1440, height: 900 },
@@ -82,7 +85,13 @@ async (page) => {
     return { smallTargets: small.length, calendarBlocks, tinyText, moving, examples: [...new Set(small)].slice(0, 12) };
   };
 
+  // Sign in as the demo account (button on the login screen).
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Entrar como demo' }).click();
+  await page.waitForURL(`${BASE}/`);
+
   const results = [];
+  const navLabels = [];
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     for (const path of PAGES) {
@@ -90,6 +99,13 @@ async (page) => {
       await page.goto(BASE + path, { waitUntil: 'networkidle' });
       await page.waitForTimeout(700);
       results.push({ viewport: viewport.name, path, ...(await page.evaluate(measure)) });
+      // Landmarks of the same role must be told apart (two "Principal" navs were a bug).
+      navLabels.push(
+        ...(await page.evaluate(() => {
+          const labels = [...document.querySelectorAll('nav')].map((nav) => nav.getAttribute('aria-label') ?? '');
+          return labels.length === new Set(labels).size ? [] : [`duplicate nav labels: ${labels.join(' | ')}`];
+        })),
+      );
     }
   }
   await page.emulateMedia({ reducedMotion: null, colorScheme: null });
@@ -101,6 +117,7 @@ async (page) => {
       calendarBlocksUnder44: total('calendarBlocks'),
       tinyText: total('tinyText'),
       movingUnderReducedMotion: total('moving'),
+      duplicateNavLabels: navLabels.length,
     },
     perPage: results.map((row) => `${row.viewport} ${row.path}: targets ${row.smallTargets}, blocks ${row.calendarBlocks}, tiny ${row.tinyText}, moving ${row.moving}`),
     examples: [...new Set(results.flatMap((row) => row.examples))].slice(0, 40),

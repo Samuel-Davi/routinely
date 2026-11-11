@@ -54,7 +54,7 @@ export function SegmentedControl<T extends string>({
               );
             }}
             className={cn(
-              'pressable h-8 min-w-16 rounded-[0.5rem] px-3 text-footnote font-medium',
+              'pressable h-11 min-w-16 rounded-[0.5rem] px-3 text-footnote font-medium',
               selected
                 ? 'bg-surface-raised text-label shadow-card'
                 : 'text-label-secondary hover:text-label',

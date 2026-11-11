@@ -75,7 +75,7 @@ export function Input({
         id={fieldId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(fieldId, error, hint)}
-        className={cn(CONTROL, 'h-10', className)}
+        className={cn(CONTROL, 'h-11', className)}
         {...props}
       />
     </FieldShell>
@@ -133,7 +133,7 @@ export function Select({
         id={fieldId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(fieldId, error, hint)}
-        className={cn(CONTROL, 'h-10 appearance-none pr-8', className)}
+        className={cn(CONTROL, 'h-11 appearance-none pr-8', className)}
         {...props}
       >
         {children}

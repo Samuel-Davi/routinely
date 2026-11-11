@@ -127,7 +127,12 @@ describe('WeekScreen', () => {
       await screen.findByRole('button', { name: BLOCK_NAME }, { timeout: 4000 }),
     ).toBeInTheDocument();
     expect(polls).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText('Rotina gerada sem IA').length).toBeGreaterThan(0);
+    // the notice is one collapsed strip: the title is its summary, the details open on demand
+    expect(screen.getByRole('region', { name: 'Avisos da rotina' })).toHaveTextContent(
+      'Rotina gerada sem IA',
+    );
+    expect(screen.queryByText('IA não configurada. Rotina gerada sem IA.')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }));
     expect(screen.getByText('IA não configurada. Rotina gerada sem IA.')).toBeInTheDocument();
     expect(screen.queryByText('Montando sua rotina…')).not.toBeInTheDocument();
   });
@@ -177,7 +182,12 @@ describe('WeekScreen', () => {
       }),
     });
     renderWithProviders(<WeekScreen />);
-    expect(await screen.findByText('Rotina ajustada automaticamente')).toBeInTheDocument();
+    // two notices become ONE strip with a counter
+    const strip = await screen.findByRole('region', { name: 'Avisos da rotina' });
+    expect(strip).toHaveTextContent('2 avisos');
+    expect(screen.queryByText('1 tarefa ficou fora da rotina')).not.toBeInTheDocument();
+    await userEvent.click(within(strip).getByRole('button', { name: /Ver detalhes/ }));
+    expect(screen.getByText('Rotina ajustada automaticamente')).toBeInTheDocument();
     expect(screen.getByText('1 tarefa ficou fora da rotina')).toBeInTheDocument();
     expect(screen.getByText(/Não cabe antes do prazo/)).toBeInTheDocument();
   });
@@ -207,16 +217,17 @@ describe('WeekScreen', () => {
       http.get(`${API}/routines/${next.id}`, () => HttpResponse.json(next)),
     );
     const { store } = renderWithProviders(<WeekScreen />);
-    const banner = (await screen.findByText('Sua rotina pode estar desatualizada')).closest(
-      '[role="status"]',
-    ) as HTMLElement;
-    expect(banner).toHaveTextContent('2 tarefas novas; 1 bloco ficou para trás');
+    const strip = await screen.findByRole('region', { name: 'Avisos da rotina' });
+    expect(strip).toHaveTextContent('Sua rotina pode estar desatualizada');
+    await userEvent.click(within(strip).getByRole('button', { name: /Ver detalhes/ }));
+    expect(strip).toHaveTextContent('2 tarefas novas; 1 bloco ficou para trás');
 
-    await userEvent.click(within(banner).getByRole('button', { name: 'Agora não' }));
+    await userEvent.click(within(strip).getByRole('button', { name: 'Agora não' }));
     expect(screen.queryByText('Sua rotina pode estar desatualizada')).not.toBeInTheDocument();
     expect(store.getState().ui.dismissedSuggestionFor).toBe(world.routine?.id);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Replanejar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mais opções' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Replanejar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Replanejar' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Replanejar' }));
     expect(await screen.findByText('Rotina replanejada')).toBeInTheDocument();
@@ -327,7 +338,8 @@ describe('WeekScreen', () => {
     const blockButton = await screen.findByRole('button', { name: BLOCK_NAME });
     expect(blockButton).toHaveAttribute('aria-roledescription', 'bloco arrastável');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Replanejar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mais opções' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Replanejar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Replanejar' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Replanejar' }));
 
