@@ -140,4 +140,48 @@ describe('RoutineProposer', () => {
     provider.configured = false;
     expect(proposer.isAvailable()).toBe(false);
   });
+
+  describe('proposeOrder', () => {
+    const reply = {
+      plan: [
+        {
+          taskId: 'T2',
+          blocks: [{ minutes: 15, day: '2026-11-10' }],
+          rationale: 'rápida',
+        },
+        { taskId: 'T1', blocks: [{ minutes: 90 }], rationale: 'prazo' },
+      ],
+    };
+
+    it('uses the order prompt and maps aliases back, dropping days unless asked for', async () => {
+      const { proposer, provider } = setup();
+      provider.reply(reply);
+      const plan = await proposer.proposeOrder(input, false);
+      expect(plan.map((item) => item.taskId)).toEqual(['uuid-b', 'uuid-a']);
+      expect(plan[0]?.blocks).toEqual([{ minutes: 15 }]);
+      const call = provider.calls[0]!;
+      expect(call.name).toBe('orderRoutine');
+      expect(call.prompt).toContain('Monte a ordem e a divisão.');
+      expect(call.system).toContain('Você NÃO escolhe horários');
+      expect(call.system).not.toContain('campo opcional `day`');
+    });
+
+    it('keeps the day and adds the day rule for the order-day strategy', async () => {
+      const { proposer, provider } = setup();
+      provider.reply(reply);
+      const plan = await proposer.proposeOrder(input, true);
+      expect(plan[0]?.blocks).toEqual([{ minutes: 15, day: '2026-11-10' }]);
+      expect(provider.calls[0]!.name).toBe('orderRoutineDay');
+      expect(provider.calls[0]!.system).toContain('campo opcional `day`');
+    });
+
+    it('rejects unknown tasks and skips the call when there are no tasks', async () => {
+      const { proposer, provider } = setup();
+      provider.reply({ plan: [{ taskId: 'T9', blocks: [{ minutes: 15 }], rationale: 'x' }] });
+      await expect(proposer.proposeOrder(input, false)).rejects.toMatchObject({
+        kind: 'VALIDATION',
+      });
+      await expect(proposer.proposeOrder({ ...input, tasks: [] }, false)).resolves.toEqual([]);
+    });
+  });
 });

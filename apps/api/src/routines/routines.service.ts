@@ -7,8 +7,6 @@ import {
 } from '@nestjs/common';
 import {
   checkPlacement,
-  fromLocalDateTime,
-  toLocalDateTime,
   utcToZonedParts,
   type GenerateRoutineInput,
   type MoveBlockInput,
@@ -32,14 +30,12 @@ import { TasksRepository } from '../tasks/tasks.repository';
 import { UsersRepository } from '../users/users.repository';
 import {
   compareTasks,
-  computeFreeWindows,
   diffBlocks,
   planRoutine,
   scheduleHeuristic,
   type EngineBlock,
   type EngineTask,
   type PlanningContext,
-  type ProposeFn,
 } from './engine';
 import {
   resolveRange,
@@ -48,6 +44,7 @@ import {
   type PlanningRange,
 } from './planning-input';
 import { toBlockDto, toRoutineDto, toRoutineSummaryDto } from './routine.mapper';
+import { buildPlanningInput, buildProposeFn } from './ai-request';
 import { RoutinesRepository, type NewBlock, type RoutineWithBlocks } from './routines.repository';
 
 @Injectable()
@@ -217,14 +214,16 @@ export class RoutinesService implements OnApplicationBootstrap {
       const engineTasks = toEngineTasks(estimated, carried);
 
       const useAi = this.proposer.isAvailable();
-      const buildInput = this.inputBuilder(context, titles, commitmentOfTask, instruction);
+      const buildInput = buildPlanningInput(context, titles, commitmentOfTask, instruction);
       const { aiTasks, overflow } = useAi
         ? this.fitToBudget(engineTasks, buildInput)
         : { aiTasks: engineTasks, overflow: [] };
       const planned = await planRoutine({
         tasks: aiTasks,
         context,
-        propose: useAi ? this.buildPropose(context, buildInput) : undefined,
+        propose: useAi
+          ? buildProposeFn(this.config.AI_PLANNING_STRATEGY, this.proposer, context, buildInput)
+          : undefined,
       });
       // Tasks that did not fit the AI input budget are placed by the heuristic around the AI's blocks.
       const rest =
@@ -306,62 +305,6 @@ export class RoutinesService implements OnApplicationBootstrap {
       );
     }
     return { aiTasks: sorted.slice(0, count), overflow: sorted.slice(count) };
-  }
-
-  /** Builds the (compact) LLM request: local time strings in, short aliases and no prior rationale. */
-  private inputBuilder(
-    context: PlanningContext,
-    titles: ReadonlyMap<string, string>,
-    commitmentOfTask: ReadonlyMap<string, string>,
-    instruction?: string,
-  ): (tasks: readonly EngineTask[]) => RoutinePlanningInput {
-    const { prefs } = context;
-    const local = (instant: number) => toLocalDateTime(instant, prefs.timezone);
-    return (tasks) => ({
-      timezone: prefs.timezone,
-      now: local(context.now),
-      maxFocusBlockMinutes: prefs.maxFocusBlockMinutes,
-      minBreakMinutes: prefs.minBreakMinutes,
-      freeWindows: computeFreeWindows(context).map((window) => ({
-        start: local(window.start),
-        end: local(window.end),
-      })),
-      tasks: tasks.map((task) => ({
-        id: task.id,
-        title: task.title,
-        priority: task.priority,
-        deadline: local(task.deadline),
-        complexity: task.complexity,
-        minutes: task.minutes,
-        splittable: task.splittable,
-        commitment: commitmentOfTask.get(task.id),
-      })),
-      lockedBlocks: context.fixedBlocks
-        .filter((block) => block.end > context.now)
-        .map((block) => ({
-          title: titles.get(block.taskId) ?? 'Tarefa',
-          start: local(block.start),
-          end: local(block.end),
-        })),
-      instruction,
-    });
-  }
-
-  /** Adapts the engine's request to the LLM use case (instants out). */
-  private buildPropose(
-    context: PlanningContext,
-    buildInput: (tasks: readonly EngineTask[]) => RoutinePlanningInput,
-  ): ProposeFn {
-    const { prefs } = context;
-    return async ({ tasks, tier, feedback }) => {
-      const allocations = await this.proposer.propose({ ...buildInput(tasks), feedback, tier });
-      return allocations.map((allocation) => ({
-        taskId: allocation.taskId,
-        start: fromLocalDateTime(allocation.start, prefs.timezone),
-        end: fromLocalDateTime(allocation.end, prefs.timezone),
-        rationale: allocation.rationale || null,
-      }));
-    };
   }
 
   // ─── History ───────────────────────────────────────────────────────────────

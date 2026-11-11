@@ -15,3 +15,4 @@ graphify-out/
 next-env.d.ts
 .playwright-mcp/
 backups/
+apps/api/eval/results/

@@ -22,6 +22,7 @@ export function createLlmProvider(config: AppConfig): LlmProvider {
         retryModel: config.GEMINI_RETRY_MODEL,
         timeoutMs: config.LLM_TIMEOUT_MS,
         maxOutputTokens: config.LLM_MAX_OUTPUT_TOKENS,
+        thinkingLevel: config.GEMINI_THINKING_LEVEL,
       });
   }
 }

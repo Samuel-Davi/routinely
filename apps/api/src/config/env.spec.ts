@@ -14,6 +14,7 @@ describe('loadEnv', () => {
       DEFAULT_TIMEZONE: 'America/Manaus',
       CORS_ORIGINS: ['http://localhost:3000'],
       LLM_MAX_ATTEMPTS: 3,
+      AI_PLANNING_STRATEGY: 'order-day',
     });
     expect(env.GEMINI_API_KEY).toBeUndefined();
   });

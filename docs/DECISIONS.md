@@ -105,6 +105,32 @@ Compromissos têm `requiresTravel` (padrão falso) e Ajustes tem `travelMinutes`
 - **Payload compacto:** aliases `T1…`, janelas por dia, sem `rationale` anteriores. `LLM_MAX_INPUT_TOKENS` (padrão 12000, estimativa de ~3,5 caracteres por token) limita a entrada: as tarefas **menos urgentes** além do teto não vão para a IA e são encaixadas pelo heurístico em volta dos blocos da IA. Cada chamada loga `in=/out= tokens` (contagens do `usageMetadata`), nunca o conteúdo.
 - **Modelos:** no boot a API lista os modelos da chave (`models.list`). Se `GEMINI_MODEL`/`GEMINI_RETRY_MODEL` não existirem, avisa no log, troca pelo Flash estável mais novo do mesmo tipo (flash-lite × flash) e expõe os avisos em `/ai/status`. Nunca impede a subida. Com a chave atual, `gemini-3.6-flash` existe (o receio do ADR de pendências não se confirmou); o Flash mais forte disponível é `gemini-3.8-flash`.
 
+## ADR-021 — Estratégia de planejamento da IA escolhida por medição (comparação parcial)
+
+**Decisão:** o padrão passa a ser `AI_PLANNING_STRATEGY=order-day`: a IA decide a **ordem** das tarefas e a **divisão em blocos** (com dia preferido); o backend escolhe os horários exatos (`placeByOrder`, puro e testado) e o validador continua sendo o árbitro final, com o heurístico completando o que sobrar. `times` (a IA propõe horários) e `order` continuam disponíveis por variável de ambiente.
+
+**Como foi medido:** `pnpm eval:ai` (fora do CI, chave real, temperatura 0,2). 4 cenários fixos — a semana real do autor (aulas de seg a sáb, Web Academy, Jenkins/GitHub Actions), semana leve, semana lotada, prazos quase impossíveis com instrução do usuário — × 2 repetições = 8 execuções por linha. Modelo: `gemini-3.5-flash-lite`. "Sem IA" é o heurístico sozinho (1 execução por cenário).
+
+| Modelo                | Estratégia | Execuções | Válido na 1ª | Precisou de fallback | Blocos < 30 min | Não encaixadas | Aderência | Tokens in/out | Latência | Execuções com erro | Descartadas (cota) |
+| --------------------- | ---------- | --------: | -----------: | -------------------: | --------------: | -------------: | --------: | ------------: | -------: | -----------------: | -----------------: |
+| (sem IA)              | heuristic  |         4 |            – |                 100% |             0.8 |            1.3 |       99% |         0 / 0 |    0.0 s |                  0 |                  0 |
+| gemini-3.5-flash-lite | times      |         8 |          25% |                  75% |             0.4 |            1.4 |       85% |   3339 / 2795 |    9.4 s |                  1 |                  0 |
+| gemini-3.5-flash-lite | order      |         8 |          50% |                  50% |             0.0 |            1.5 |       80% |    2559 / 803 |    7.2 s |                  1 |                  0 |
+| gemini-3.5-flash-lite | order-day  |         8 |          50% |                  50% |             0.0 |            1.5 |       91% |   2755 / 1202 |   12.0 s |                  1 |                  0 |
+
+**Leitura:**
+
+- `order`/`order-day` acertam na 1ª tentativa o dobro de `times` (50% × 25%), geram ~3,5× menos tokens de saída (803–1202 × 2795) e não produziram bloco < 30 min (`times`: 0,4 por execução). `order-day` teve a melhor aderência à ordem prazo/prioridade (91% × 85% de `times` e 80% de `order`), ao custo de ~400 tokens de saída a mais.
+- Escolhi `order-day` por aderência e fragmentação; a diferença de latência (12 s × 7 s de `order`) é ruído de 8 amostras e de picos 503 da API.
+- A IA **não reduziu** as tarefas não encaixadas em relação ao heurístico (1,4–1,5 × 1,3). No cenário real o heurístico encaixou tudo, mas às custas de 3 blocos de 15 min; a IA deixa 1 tarefa de fora porque o validador é "tudo ou nada" por tarefa.
+
+**O que NÃO foi medido (limitações):**
+
+- **`gemini-3.6-flash` e `gemini-3.8-flash` não entram na tabela.** A cota diária deles é de apenas 20 requisições (a do 3.5 é 500); a primeira matriz esgotou o 3.6 e essas execuções (`RATE_LIMIT`) foram descartadas, e o 3.8 respondeu 503/504. Portanto a escolha do modelo forte de retry **não** é baseada em medição. O 3.6 segue como `GEMINI_RETRY_MODEL` por padrão, sem evidência.
+- `GEMINI_THINKING_LEVEL` existe (opcional), mas o efeito sobre latência/qualidade não foi medido.
+- Amostra pequena (n = 8 por linha): serve para descartar `times`, não para ranquear `order` × `order-day` com confiança. A "% válido na 1ª" é limitada por sobrecarga: nos cenários real e lotado sempre falta tempo para alguma tarefa, então nenhuma estratégia chega a 100%; vale a comparação relativa, não o valor absoluto.
+- Rodar de novo quando a cota renovar: `pnpm eval:ai -- --models gemini-3.6-flash,gemini-3.8-flash --reps 1 --scenarios real,crowded` (≈ 6 execuções por modelo e estratégia, perto do limite de 20/dia: use uma estratégia por vez com `--strategies`).
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `GEMINI_RETRY_MODEL=gemini-3.6-flash` foi mantido como especificado, mas a referência oficial consultada lista `gemini-3.8-flash` e `gemini-3.5-flash-lite` como modelos atuais e não menciona `gemini-3.6-flash`. Se o nome não existir, o retry falha e o app cai no heurístico (comportamento seguro). Confirme o nome e ajuste a variável.

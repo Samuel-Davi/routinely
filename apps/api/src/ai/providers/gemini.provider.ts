@@ -16,6 +16,7 @@ export interface GeminiOptions {
   retryModel: string;
   timeoutMs: number;
   maxOutputTokens: number;
+  thinkingLevel?: 'minimal' | 'low' | 'medium' | 'high';
 }
 
 /** The slice of the SDK this provider uses; lets tests inject a fake client. */
@@ -76,6 +77,9 @@ export class GeminiProvider implements LlmProvider {
           responseMimeType: 'application/json',
           responseJsonSchema,
           temperature: 0.2,
+          ...(this.options.thinkingLevel
+            ? { thinkingConfig: { thinkingLevel: this.options.thinkingLevel.toUpperCase() } }
+            : {}),
           maxOutputTokens: this.options.maxOutputTokens,
           abortSignal: AbortSignal.timeout(this.options.timeoutMs),
           // Retries are handled by LlmClient (backoff with jitter), not by the SDK.

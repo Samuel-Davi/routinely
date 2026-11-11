@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { GRID_MINUTES } from '../time';
-import { localDateTimeSchema } from './common';
+import { dateStringSchema, localDateTimeSchema } from './common';
 import { MAX_ESTIMATED_MINUTES } from './task';
 
 /** Structured output of the `estimateTask` use case. */
@@ -35,3 +35,33 @@ export const generateRoutineOutputSchema = z.object({
   allocations: z.array(routineAllocationSchema),
 });
 export type GenerateRoutineOutput = z.infer<typeof generateRoutineOutputSchema>;
+
+/**
+ * Structured output of the "order" strategies: the model decides the ORDER of the tasks and how
+ * each one is split into blocks (minutes, optionally a preferred day); the backend picks the
+ * exact times deterministically.
+ */
+export const orderedBlockSchema = z.object({
+  minutes: z
+    .number()
+    .int()
+    .min(GRID_MINUTES)
+    .max(MAX_ESTIMATED_MINUTES)
+    .describe(`Duração do bloco em minutos, múltiplo de ${GRID_MINUTES}`),
+  day: dateStringSchema.optional().describe('Dia preferido (AAAA-MM-DD), opcional'),
+});
+
+export const orderedTaskSchema = z.object({
+  taskId: z.string().min(1).describe('ID da tarefa, exatamente como recebido'),
+  blocks: z.array(orderedBlockSchema).min(1).describe('Blocos da tarefa, em ordem'),
+  rationale: z.string().max(200).describe('Por que esta ordem e divisão, em português'),
+});
+
+export const orderRoutineOutputSchema = z.object({
+  plan: z.array(orderedTaskSchema).describe('Tarefas da mais importante para a menos importante'),
+});
+export type OrderRoutineOutput = z.infer<typeof orderRoutineOutputSchema>;
+export type OrderedTask = z.infer<typeof orderedTaskSchema>;
+
+export const AI_PLANNING_STRATEGIES = ['times', 'order', 'order-day'] as const;
+export type AiPlanningStrategy = (typeof AI_PLANNING_STRATEGIES)[number];

@@ -1,4 +1,4 @@
-import { DEFAULT_TIMEZONE, isValidTimeZone } from '@routinely/shared';
+import { AI_PLANNING_STRATEGIES, DEFAULT_TIMEZONE, isValidTimeZone } from '@routinely/shared';
 import { z } from 'zod';
 
 /** Fixed single user of the MVP (no login). Every row points to it. */
@@ -34,6 +34,8 @@ export const envSchema = z.object({
   GEMINI_API_KEY: optionalSecret,
   GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),
   GEMINI_RETRY_MODEL: z.string().default('gemini-3.6-flash'),
+  /** Thinking effort; unset = the model's default. Lower is faster and cheaper. */
+  GEMINI_THINKING_LEVEL: z.enum(['minimal', 'low', 'medium', 'high']).optional(),
   ANTHROPIC_API_KEY: optionalSecret,
   ANTHROPIC_MODEL: z.string().default('claude-haiku-5-5'),
   OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
@@ -42,6 +44,11 @@ export const envSchema = z.object({
   LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).default(8192),
   /** Input budget for the routine prompt; the least urgent tasks beyond it go to the heuristic. */
   LLM_MAX_INPUT_TOKENS: z.coerce.number().int().min(500).default(12_000),
+  /**
+   * How the AI takes part in planning: `times` = it proposes exact times; `order` = it decides
+   * order and split, the backend places; `order-day` (default, ADR-021) = same, plus a preferred day.
+   */
+  AI_PLANNING_STRATEGY: z.enum(AI_PLANNING_STRATEGIES).default('order-day'),
   LLM_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(3),
   LLM_BACKOFF_BASE_MS: z.coerce.number().int().min(0).default(1000),
   AI_RATE_LIMIT_TTL_MS: z.coerce.number().int().min(1000).default(60_000),

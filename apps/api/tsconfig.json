@@ -12,5 +12,5 @@
     "types": ["node", "jest"],
     "rootDir": "."
   },
-  "include": ["src", "test", "jest.config.ts"]
+  "include": ["src", "test", "eval", "jest.config.ts"]
 }

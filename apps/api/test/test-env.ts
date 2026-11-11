@@ -11,4 +11,6 @@ process.env.DIRECT_URL = TEST_DATABASE_URL;
 process.env.GEMINI_API_KEY = '';
 process.env.ANTHROPIC_API_KEY = '';
 process.env.LLM_BACKOFF_BASE_MS = '0';
+// Most e2e tests script `times` proposals; the order strategies have their own spec.
+process.env.AI_PLANNING_STRATEGY = 'times';
 process.env.AI_RATE_LIMIT_MAX = '1000';

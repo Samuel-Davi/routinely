@@ -15,7 +15,8 @@
     "test": "pnpm -r test",
     "test:e2e": "pnpm --filter @routinely/api test:e2e",
     "prepare": "husky",
-    "db:up": "docker compose up -d db"
+    "db:up": "docker compose up -d db",
+    "eval:ai": "pnpm --filter @routinely/api eval:ai"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [

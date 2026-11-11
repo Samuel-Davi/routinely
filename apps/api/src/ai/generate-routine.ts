@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   generateRoutineOutputSchema,
+  orderRoutineOutputSchema,
+  type OrderedTask,
   type Priority,
   type RoutineAllocation,
 } from '@routinely/shared';
@@ -89,7 +91,10 @@ export class RoutineProposer {
     return this.llm.isConfigured();
   }
 
-  buildPrompt(input: RoutinePlanningInput): { prompt: string; aliases: Map<string, string> } {
+  buildPrompt(
+    input: RoutinePlanningInput,
+    template: 'generate-routine.user' | 'order-routine.user' = 'generate-routine.user',
+  ): { prompt: string; aliases: Map<string, string> } {
     // Short aliases (T1, T2…) are cheaper and less error-prone than UUIDs.
     const aliases = new Map<string, string>();
     const tasks = input.tasks.map((task, index) => {
@@ -109,7 +114,7 @@ export class RoutineProposer {
     const lockedBlocks = input.lockedBlocks.map(
       (block) => `"${sanitizeForPrompt(block.title, 120)}": ${block.start} → ${block.end}`,
     );
-    let prompt = renderPrompt(loadPrompt('generate-routine.user'), {
+    let prompt = renderPrompt(loadPrompt(template), {
       timezone: input.timezone,
       now: input.now,
       maxFocusBlockMinutes: input.maxFocusBlockMinutes,
@@ -131,6 +136,40 @@ export class RoutineProposer {
   /** Estimated input tokens (system + prompt) of this request, to enforce the input budget. */
   estimateInputTokens(input: RoutinePlanningInput): number {
     return estimateTokens(loadPrompt('generate-routine.system') + this.buildPrompt(input).prompt);
+  }
+
+  /**
+   * "Order" strategies: the model only decides the order of the tasks and how each is split
+   * (optionally with a preferred day); the backend picks the times (`placeByOrder`).
+   */
+  async proposeOrder(
+    input: RoutinePlanningInput,
+    withDay: boolean,
+  ): Promise<{ taskId: string; blocks: OrderedTask['blocks']; rationale: string }[]> {
+    if (input.tasks.length === 0) return [];
+    const { prompt, aliases } = this.buildPrompt(input, 'order-routine.user');
+    const system =
+      loadPrompt('order-routine.system') + (withDay ? `\n${loadPrompt('order-routine.day')}` : '');
+    const output = await this.llm.generateStructured({
+      name: withDay ? 'orderRoutineDay' : 'orderRoutine',
+      system,
+      prompt,
+      schema: orderRoutineOutputSchema,
+      tier: input.tier,
+    });
+    const unknown = output.plan.filter((item) => !aliases.has(item.taskId));
+    if (unknown.length > 0) {
+      throw new LlmError(
+        'VALIDATION',
+        'The model referenced unknown tasks',
+        unknown.map((item) => `taskId desconhecido: ${item.taskId}`),
+      );
+    }
+    return output.plan.map((item) => ({
+      taskId: aliases.get(item.taskId) as string,
+      blocks: withDay ? item.blocks : item.blocks.map(({ minutes }) => ({ minutes })),
+      rationale: item.rationale,
+    }));
   }
 
   async propose(input: RoutinePlanningInput): Promise<RoutineAllocation[]> {
