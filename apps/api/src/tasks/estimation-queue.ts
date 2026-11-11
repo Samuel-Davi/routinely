@@ -8,9 +8,3 @@ export interface EstimationQueue {
 }
 
 export const ESTIMATION_QUEUE = Symbol('ESTIMATION_QUEUE');
-
-export class NoopEstimationQueue implements EstimationQueue {
-  enqueue(): void {
-    // Estimation disabled: tasks stay PENDING until estimated manually.
-  }
-}

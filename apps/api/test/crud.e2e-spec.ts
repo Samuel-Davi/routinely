@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { DEFAULT_PREFERENCES } from '@routinely/shared';
 import request from 'supertest';
 import type { PrismaService } from '../src/prisma/prisma.service';
+import { TaskEstimationWorker } from '../src/tasks/task-estimation.worker';
 import { createTestApp, resetDatabase } from './test-app';
 
 describe('CRUD endpoints (e2e)', () => {
@@ -12,7 +13,11 @@ describe('CRUD endpoints (e2e)', () => {
   beforeAll(async () => {
     ({ app, prisma } = await createTestApp());
   });
-  beforeEach(() => resetDatabase(prisma));
+  beforeEach(async () => {
+    // let background estimations of the previous test finish before truncating
+    await app.get(TaskEstimationWorker).idle();
+    await resetDatabase(prisma);
+  });
   afterAll(() => app.close());
 
   describe('GET /health', () => {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
+import { AiModule } from './ai/ai.module';
 import { CommonModule } from './common/common.module';
 import { APP_CONFIG, ConfigModule, type AppConfig } from './config/config.module';
 import { FixedCommitmentsModule } from './fixed-commitments/fixed-commitments.module';
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
     PrismaModule,
     CommonModule,
     UsersModule,
+    AiModule,
     HealthModule,
     FixedCommitmentsModule,
     TasksModule,

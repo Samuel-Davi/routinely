@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiNoContentResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   TASK_STATUSES,
@@ -11,6 +22,7 @@ import {
   type UpdateTaskInput,
 } from '@routinely/shared';
 import { z } from 'zod';
+import { AiThrottlerGuard } from '../ai/ai-throttler.guard';
 import { IdPipe } from '../common/id.pipe';
 import { ApiIdParam, ApiZodBody, ApiZodResponse } from '../common/swagger';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -40,6 +52,7 @@ export class TasksController {
   }
 
   @Post()
+  @UseGuards(AiThrottlerGuard)
   @ApiOperation({ summary: 'Cria a tarefa; a estimativa de IA roda em segundo plano' })
   @ApiZodBody(createTaskSchema)
   @ApiZodResponse(taskSchema, 201)
@@ -60,6 +73,7 @@ export class TasksController {
   }
 
   @Post(':id/estimate')
+  @UseGuards(AiThrottlerGuard)
   @HttpCode(202)
   @ApiOperation({ summary: 'Descarta o override manual e pede uma nova estimativa à IA' })
   @ApiIdParam()
