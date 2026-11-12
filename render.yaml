@@ -6,6 +6,8 @@ services:
     name: routinely-api
     runtime: docker
     plan: free
+    # Fixed so the Supabase region can be chosen to match (docs/DEPLOY-CHECKLIST.md, step 8).
+    region: oregon
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
     # The last stage of the Dockerfile is `prod`; migrations run from CI (see deploy.yml).

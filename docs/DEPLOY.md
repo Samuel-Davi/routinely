@@ -4,6 +4,9 @@ Guia para publicar o Routinely de graça e manter o deploy automático. Foi escr
 siga os passos **em ordem**. Todo passo que exige uma conta sua, um clique no painel ou um segredo está marcado
 como **AÇÃO MANUAL** (eu não crio contas, não faço push e não tenho credenciais).
 
+> **Para executar na prática, use o [`DEPLOY-CHECKLIST.md`](DEPLOY-CHECKLIST.md)** (32 passos numerados, na ordem). Este
+> arquivo explica as escolhas.
+>
 > Os limites abaixo foram conferidos nas páginas oficiais em **11/11/2026**. Planos gratuitos mudam sem aviso:
 > reconfira antes de depender de um número.
 
@@ -128,7 +131,8 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
 1. **AÇÃO MANUAL** Crie a conta em <https://vercel.com> (login com GitHub) → _Add New → Project_ → importe o repositório.
 2. Em _Configure Project_: **Root Directory = `apps/web`** (framework: Next.js). Os comandos de instalação e build
    já estão no `apps/web/vercel.json` (instalam pela raiz do monorepo e compilam o pacote `shared` antes). O mesmo
-   arquivo desliga o deploy automático da `main` (`git.deploymentEnabled`): quem publica é o CD, depois do CI.
+   arquivo desliga o deploy automático da `main` (`git.deploymentEnabled`): quem publica é o CD, depois do CI. **Não verificado:** a
+   documentação da Vercel não diz se o deploy hook continua funcionando com essa chave; o passo 28 do checklist confirma e traz o plano B.
 3. **Environment Variables** (_Production_):
 
    | Variável                       | Valor                                                                         |
