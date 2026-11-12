@@ -194,20 +194,20 @@ O validador rejeita qualquer bloco que sobreponha compromisso fixo, almoço ou o
 
 Todas as variáveis estão documentadas em [`.env.example`](.env.example). As principais:
 
-| Variável              | Padrão                  | Descrição                                                        |
-| --------------------- | ----------------------- | ---------------------------------------------------------------- |
-| `LLM_PROVIDER`        | `gemini`                | `gemini`, `anthropic` ou `ollama`                                |
-| `GEMINI_API_KEY`      | —                       | Chave do Google AI Studio                                        |
-| `GEMINI_MODEL`        | `gemini-3.5-flash-lite` | Modelo padrão                                                    |
-| `GEMINI_RETRY_MODEL`  | `gemini-3.6-flash`      | Modelo usado no retry de validação                               |
-| `DATABASE_URL`        | Postgres local          | Conexão usada em runtime (pooled em produção)                    |
-| `DIRECT_URL`          | Postgres local          | Conexão direta usada pelas migrations                            |
-| `NEXT_PUBLIC_API_URL` | _(vazio)_               | Vazio = o navegador chama `/api/*` na própria origem do front    |
-| `API_INTERNAL_URL`    | `http://localhost:3001` | Para onde o servidor web encaminha `/api/*` (lido em runtime)    |
-| `DEFAULT_TIMEZONE`    | `America/Manaus`        | Fuso padrão (cada usuário pode trocar em Ajustes)                |
-| `CORS_ORIGINS`        | `http://localhost:3000` | Origens permitidas, separadas por vírgula                        |
-| `LLM_TIMEOUT_MS`      | `30000`                 | Timeout por chamada de IA                                        |
-| `AI_RATE_LIMIT_MAX`   | `20`                    | Requisições por `AI_RATE_LIMIT_TTL_MS` nos endpoints que usam IA |
+| Variável              | Padrão                  | Descrição                                                                         |
+| --------------------- | ----------------------- | --------------------------------------------------------------------------------- |
+| `LLM_PROVIDER`        | `gemini`                | `gemini`, `anthropic` ou `ollama`                                                 |
+| `GEMINI_API_KEY`      | —                       | Chave do Google AI Studio                                                         |
+| `GEMINI_MODEL`        | `gemini-3.5-flash-lite` | Modelo padrão                                                                     |
+| `GEMINI_RETRY_MODEL`  | `gemini-3.6-flash`      | Modelo usado no retry de validação                                                |
+| `DATABASE_URL`        | Postgres local          | Conexão usada em runtime (pooled em produção)                                     |
+| `DIRECT_URL`          | Postgres local          | Conexão direta usada pelas migrations                                             |
+| `NEXT_PUBLIC_API_URL` | _(vazio)_               | **Deixe vazio** (o compose ignora): o navegador chama `/api/*` na origem do front |
+| `API_INTERNAL_URL`    | `http://localhost:3001` | Para onde o servidor web encaminha `/api/*` (lido em runtime)                     |
+| `DEFAULT_TIMEZONE`    | `America/Manaus`        | Fuso padrão (cada usuário pode trocar em Ajustes)                                 |
+| `CORS_ORIGINS`        | `http://localhost:3000` | Origens permitidas, separadas por vírgula                                         |
+| `LLM_TIMEOUT_MS`      | `30000`                 | Timeout por chamada de IA                                                         |
+| `AI_RATE_LIMIT_MAX`   | `20`                    | Requisições por `AI_RATE_LIMIT_TTL_MS` nos endpoints que usam IA                  |
 
 ### Trocar para o Supabase
 

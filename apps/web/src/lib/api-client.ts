@@ -48,7 +48,10 @@ export function setSessionExpiredHandler(handler: (() => void) | null): void {
 
 /** One refresh at a time: parallel 401s share it (the refresh token rotates, it can be used once). */
 function refreshSession(): Promise<boolean> {
-  refreshInFlight ??= fetch(`${env.apiUrl}/auth/refresh`, { method: 'POST' })
+  refreshInFlight ??= fetch(`${env.apiUrl}/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  })
     .then((response) => response.ok)
     .catch(() => false)
     .finally(() => {
@@ -72,6 +75,8 @@ export async function apiRequest<TSchema extends z.ZodType | undefined = undefin
     fetch(`${env.apiUrl}${path}`, {
       method,
       signal,
+      // Same-origin by default; `include` also keeps a direct (cross-origin) API URL working.
+      credentials: 'include',
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

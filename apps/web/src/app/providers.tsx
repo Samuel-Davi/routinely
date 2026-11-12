@@ -5,6 +5,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Provider as ReduxProvider } from 'react-redux';
 import { ToastProvider } from '@/components/ui/toast';
 import { setSessionExpiredHandler } from '@/lib/api-client';
+import { env } from '@/lib/env';
+import { leaveForLogin } from '@/lib/session-expiry';
 import { createQueryClient } from '@/lib/query-client';
 import { makeStore } from '@/lib/store/store';
 
@@ -17,7 +19,14 @@ export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSessionExpiredHandler(() => {
       queryClient.clear();
-      if (!window.location.pathname.startsWith('/login')) window.location.replace('/login');
+      void leaveForLogin({
+        logout: () =>
+          fetch(`${env.apiUrl}/auth/logout`, { method: 'POST', credentials: 'include' }),
+        navigate: (path) => window.location.replace(path),
+        now: Date.now,
+        storage: safeSessionStorage(),
+        pathname: window.location.pathname,
+      });
     });
     return () => setSessionExpiredHandler(null);
   }, [queryClient]);
@@ -28,4 +37,12 @@ export function Providers({ children }: { children: ReactNode }) {
       </QueryClientProvider>
     </ReduxProvider>
   );
+}
+
+function safeSessionStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
 }

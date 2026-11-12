@@ -99,9 +99,10 @@ services:
       dockerfile: apps/web/Dockerfile
       target: prod
       args:
-        # Inlined into the browser bundle at build time. Leave empty: the browser calls the web
-        # origin (`/api/*`), which proxies to the API, so the login cookies stay first-party.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+        # Always empty on purpose (NOT read from .env): the browser must call the web origin
+        # (`/api/*`), which proxies to the API, so the login cookies stay first-party. A value
+        # such as http://localhost:3001 baked into the bundle makes login "restart" forever.
+        NEXT_PUBLIC_API_URL: ''
         NEXT_PUBLIC_DEFAULT_TIMEZONE: ${NEXT_PUBLIC_DEFAULT_TIMEZONE:-America/Manaus}
     environment:
       # Read at request time by the /api proxy (apps/web/src/lib/api-proxy.ts).
