@@ -108,7 +108,6 @@ jobs:
     env:
       DATABASE_URL: postgresql://routinely:routinely@localhost:5432/routinely?schema=public
       DIRECT_URL: postgresql://routinely:routinely@localhost:5432/routinely?schema=public
-      NEXT_PUBLIC_API_URL: http://localhost:3001
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -120,15 +119,22 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # No secret may have leaked into the web bundle, the API build or tracked files.
+      - name: Check for leaked secrets
+        run: pnpm check:secrets
 
   docker:
-    name: Docker image (${{ matrix.app }})
+    name: Docker image (${{ matrix.app }}/${{ matrix.target }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web]
+        include:
+          - { app: api, target: prod }
+          # one-shot job that applies migrations (docker compose / release command)
+          - { app: api, target: migrate }
+          - { app: web, target: prod }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -139,7 +145,7 @@ jobs:
         with:
           context: .
           file: apps/${{ matrix.app }}/Dockerfile
-          target: prod
+          target: ${{ matrix.target }}
           push: false
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,scope=${{ matrix.app }},mode=max
+          cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.app }}-${{ matrix.target }},mode=max

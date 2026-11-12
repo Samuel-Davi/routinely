@@ -1,0 +1,52 @@
+# Render Blueprint for the API (docs/DEPLOY.md). Secrets are NOT stored here: `sync: false` means
+# "ask me in the dashboard". Deploys are triggered by the GitHub Actions workflow after CI is green
+# (deploy hook), so Render's own auto-deploy is off.
+services:
+  - type: web
+    name: routinely-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    # The last stage of the Dockerfile is `prod`; migrations run from CI (see deploy.yml).
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: DATABASE_URL # Supabase session pooler, port 5432 (docs/DEPLOY.md, step 2)
+        sync: false
+      - key: DIRECT_URL # same session pooler string (the direct host is IPv6-only on Free)
+        sync: false
+      - key: JWT_SECRET # openssl rand -base64 48
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_RETRY_MODEL
+        value: gemini-3.5-flash-lite
+      - key: AI_PLANNING_STRATEGY
+        value: order-day
+      - key: AI_DAILY_LIMIT
+        value: '20'
+      - key: AI_GLOBAL_DAILY_LIMIT
+        value: '100'
+      - key: CORS_ORIGINS # the web origin (cookies go through its /api proxy, so this is a backstop)
+        sync: false
+      - key: COOKIE_SECURE
+        value: 'true'
+      # Render's load balancer + the web proxy: see docs/DEPLOY.md ("TRUST_PROXY").
+      - key: TRUST_PROXY
+        value: '2'
+      # Portfolio mode
+      - key: REGISTRATION_ENABLED
+        value: 'false'
+      - key: DEMO_ENABLED
+        value: 'true'
+      - key: DEMO_EMAIL
+        sync: false
+      - key: DEMO_PASSWORD
+        sync: false

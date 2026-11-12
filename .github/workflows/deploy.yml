@@ -1,0 +1,75 @@
+name: Deploy
+
+# Continuous deployment: runs ONLY after the CI workflow finished successfully for a push to main.
+# Nothing here builds or tests code; it applies migrations and asks Render and Vercel to deploy.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+# Least privilege: the workflow only reads the repository (deploy credentials are secrets of the
+# `production` environment, never the GITHUB_TOKEN).
+permissions:
+  contents: read
+
+# One deploy at a time; never cancel one halfway (a migration may be running).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrate, deploy and smoke test
+    # `workflow_run` also fires for failed or PR runs: only a green CI of a push to main passes.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Secrets live in this environment (Settings > Environments > production); you can also add
+    # required reviewers there for a manual approval before every deploy.
+    environment:
+      name: production
+      url: ${{ vars.WEB_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The exact commit CI approved, not whatever main is by now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @routinely/api...
+
+      # Migrations are additive (ADR rule), so applying them before the new code is safe.
+      - name: Apply database migrations
+        working-directory: apps/api
+        run: pnpm exec prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      - name: Deploy the API (Render deploy hook)
+        run: curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
+      - name: Deploy the web app (Vercel deploy hook)
+        run: curl --fail --silent --show-error --max-time 30 -X POST "$VERCEL_DEPLOY_HOOK_URL" > /dev/null
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+
+      # Render's free instance sleeps and builds take minutes: the script waits and retries.
+      - name: Smoke test the live site
+        run: node scripts/smoke-test.mjs
+        env:
+          SMOKE_BASE_URL: ${{ vars.WEB_URL }}
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}

@@ -1,0 +1,44 @@
+name: Reset demo account
+
+# Daily: restores the shared demo account to its initial data. It also writes to the database
+# every day, which keeps a Supabase Free project from being paused for inactivity.
+on:
+  schedule:
+    - cron: '17 6 * * *' # 06:17 UTC; GitHub may delay scheduled runs
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      NODE_ENV: production
+      # Never call the AI: the demo planner is deterministic anyway.
+      GEMINI_API_KEY: ''
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DEMO_EMAIL: ${{ secrets.DEMO_EMAIL }}
+      DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @routinely/api...
+      - run: pnpm --filter @routinely/shared build && pnpm --filter @routinely/api build
+      - name: Reset the demo data
+        working-directory: apps/api
+        run: node dist/demo/demo.cli.js

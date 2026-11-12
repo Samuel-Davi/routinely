@@ -1,5 +1,9 @@
 # Routinely
 
+<!-- AÇÃO MANUAL (depois do primeiro push, ver docs/DEPLOY.md, passo 1): troque DONO/REPO e remova este comentário
+[![CI](https://github.com/DONO/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/DONO/REPO/actions/workflows/ci.yml)
+-->
+
 Gera, com IA, uma **rotina semanal** a partir dos seus compromissos fixos e das suas tarefas com prioridade e prazo.
 
 - Compromissos fixos semanais e tarefas (CRUD), com **estimativa de esforço por IA** (complexidade, duração, divisível) e ajuste manual.
@@ -7,6 +11,16 @@ Gera, com IA, uma **rotina semanal** a partir dos seus compromissos fixos e das 
 - Calendário semanal (visão diária com swipe no celular), **drag & drop** para mover/redimensionar com validação de conflito em tempo real.
 - **Replanejar** só o futuro, preservando blocos travados e concluídos; sugestão automática quando a rotina fica desatualizada.
 - Concluir blocos/tarefas e **histórico de versões** com diff resumido e restauração.
+
+## Demo ao vivo
+
+- **AÇÃO MANUAL (link):** depois do deploy, coloque aqui a URL do site: `https://SEU-SITE.vercel.app` (passo a passo em
+  [`docs/DEPLOY.md`](docs/DEPLOY.md)).
+- **A IA está desligada para visitantes.** O botão **"Entrar como demo"** abre uma conta compartilhada com dados fictícios
+  e o planejador determinístico ("Modo demo, sem IA"). O cadastro é fechado; só o dono usa a IA de verdade.
+- **AÇÃO MANUAL (GIF/vídeo):** grave uma gravação curta (10–20 s) da **geração com IA** na sua conta e salve em
+  `docs/media/geracao-com-ia.gif`; depois inclua `![Geração com IA](docs/media/geracao-com-ia.gif)` aqui. Eu não consigo
+  gravar a sua tela nem usar a sua conta.
 
 > **A IA propõe; o backend valida.** Nenhuma alocação é salva sem passar por um validador determinístico. Se a IA falhar (resposta inválida, limite de uso, sem chave), um planejador heurístico garante que sempre exista uma rotina — e a interface avisa: _"Rotina gerada sem IA"_.
 
@@ -218,6 +232,10 @@ Nada mais muda: retry, backoff, validação e fallback ficam no `LlmClient` e no
 ## CI
 
 `.github/workflows/ci.yml` roda em push/PR, com jobs em paralelo: lint + typecheck, testes web, testes API (com serviço Postgres), build e build das imagens Docker (sem push). Runs antigos do mesmo branch são cancelados e o token tem permissão somente de leitura.
+
+## Deploy
+
+Guia completo e executável (Vercel + Render + Supabase, CD pelo GitHub Actions e modo portfólio): [`docs/DEPLOY.md`](docs/DEPLOY.md). Comandos úteis: `pnpm demo:reset`, `pnpm check:secrets`, `node scripts/smoke-test.mjs`.
 
 ## Documentação
 

@@ -175,6 +175,15 @@ O app pode ficar público sem expor a chave do Gemini nem a cota gratuita.
 - **Reduced motion zera transições e animações** (`transition-duration: 0.01ms`), e o menu/estados não dependem de movimento. A auditoria (`scripts/ui-audit.playwright.js`) mede alvos, texto < 12 px, movimento e rótulos duplicados de landmarks, antes e depois (`docs/DESIGN-NOTES.md`).
 - **Custo:** controles maiores ocupam mais espaço em barras densas (aceito: menos controles, mais respiro). O menu esconde "Replanejar"; a sugestão de replanejar continua visível na faixa de avisos.
 
+## ADR-027 — Deploy gratuito: Vercel + Render + Supabase, CD por GitHub Actions e deploy hooks
+
+- **Escolha (limites conferidos em 11/11/2026, ver `docs/DEPLOY.md`):** front na **Vercel Hobby** (grátis, uso não comercial), API na **Render** (web service grátis: dorme após 15 min e acorda em ~1 min; 750 h/mês por workspace) e Postgres no **Supabase Free** (500 MB; pausa por inatividade em 7 dias). Plano B: Railway (Free com US$ 1/mês ou Hobby US$ 5) e Fly.io (sem plano grátis; ~US$ 2,19/mês). O Postgres grátis do Render foi descartado: expira em 30 dias.
+- **Conexão com o banco:** a _session pooler_ do Supabase (5432) para `DATABASE_URL` e `DIRECT_URL`, porque a conexão direta é só IPv6 no plano grátis e a pooler é IPv4 em todos os planos.
+- **CD:** o workflow `deploy.yml` roda só quando o CI conclui com sucesso para um push na `main`; faz checkout do SHA aprovado, aplica as migrations (aditivas) e dispara os deploy hooks do Render e da Vercel (auto-deploy da `main` desligado nas duas: `autoDeploy: false` e `git.deploymentEnabled`). **Por quê:** a integração nativa do Render tem "After CI Checks Pass", mas a da Vercel publica todo push; os hooks dão um portão único e deixam as migrations antes do código. Segurança: ações por SHA, `GITHUB_TOKEN` somente leitura, segredos no ambiente `production` (com aprovação opcional) e nenhum `${{ }}` em scripts.
+- **Smoke test pós-deploy** (`scripts/smoke-test.mjs`) pelo mesmo caminho do navegador: health, login/demo, cookies, criar compromisso e tarefa, gerar rotina, limpar. Também usado manualmente.
+- **Reset diário da demo** (`demo-reset.yml`) por Actions, que também mantém o Supabase ativo; o GitHub desativa agendamentos de repositório público após 60 dias sem atividade.
+- **Não verificado:** nada disso foi executado em produção (não há contas nem credenciais aqui). Em aberto: se o RLS do Supabase afeta a conexão do Prisma, o valor correto de `TRUST_PROXY` atrás de Render + Vercel, a existência do botão de rollback no plano grátis do Render e as regiões disponíveis nele.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).

@@ -4,6 +4,9 @@
 //   pnpm --filter @routinely/api claim-owner -- --email voce@exemplo.com
 //   docker compose run --rm -it migrate node scripts/claim-owner.mjs --email voce@exemplo.com
 //
+// On a brand-new database (e.g. production) there is no seed user: add --create to create the
+// owner account instead (this is how the owner gets in when signup is closed).
+//
 // The password is asked on the terminal (hidden) and never printed or logged. For automation
 // only, CLAIM_PASSWORD may be set instead (it ends up in the environment/shell history).
 import { createInterface } from 'node:readline';
@@ -20,6 +23,7 @@ const arg = (name) => {
   return index >= 0 ? argv[index + 1] : undefined;
 };
 const force = argv.includes('--force');
+const create = argv.includes('--create');
 
 /** Reads a line without echoing it. */
 function askHidden(question) {
@@ -41,9 +45,17 @@ async function main() {
     const email = emailSchema.safeParse(arg('email') ?? '');
     if (!email.success) throw new Error('Informe um e-mail válido: --email voce@exemplo.com');
 
-    const owner = await prisma.user.findUnique({ where: { id: SEED_USER_ID } });
-    if (!owner)
-      throw new Error('Usuário de seed não encontrado (banco novo? Faça o cadastro pelo app).');
+    let owner = await prisma.user.findUnique({ where: { id: SEED_USER_ID } });
+    if (!owner) {
+      if (!create) {
+        throw new Error(
+          'Usuário de seed não encontrado (banco novo?). Use --create para criar a conta do dono.',
+        );
+      }
+      owner = await prisma.user.create({
+        data: { id: SEED_USER_ID, name: email.data.split('@')[0] ?? 'Dono' },
+      });
+    }
     if (owner.passwordHash && !force) {
       throw new Error('O dono dos dados já tem senha. Use --force para trocá-la.');
     }
@@ -76,9 +88,7 @@ async function main() {
     });
     // Sessions opened under an older password (if any) must not survive a password change.
     await prisma.refreshToken.deleteMany({ where: { userId: owner.id } });
-    console.log(
-      `Pronto: ${email.data} agora é o dono dos dados existentes. Entre pelo app com essa conta.`,
-    );
+    console.log(`Pronto: ${email.data} é a conta do dono. Entre pelo app com ela.`);
   } finally {
     await prisma.$disconnect();
   }
