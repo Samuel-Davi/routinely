@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useId, useState, type ReactNode } from 'react';
 import { Button, Icon, Spinner, toneStyle } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { UNSCHEDULED_REASON_LABEL, replanReasonLabel } from '@/lib/labels';
+import { describeUnscheduled, replanReasonLabel } from '@/lib/labels';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { selectDismissedSuggestionFor, suggestionDismissed } from '@/lib/store/ui-slice';
 import { useReplanSuggestion, useStartRoutineJob } from './api';
@@ -92,36 +92,67 @@ export function RoutineNotices({ routine, pending }: RoutineNoticesProps) {
     });
   }
 
-  if (routine.unscheduled.length > 0) {
+  // Tasks scheduled for LESS time than they need come first: the user still has to do them,
+  // in a shorter session. Only tasks with no usable time at all are "left out".
+  const partial = routine.unscheduled.filter((item) => item.reason === 'PARTIAL');
+  const leftOut = routine.unscheduled.filter((item) => item.reason !== 'PARTIAL');
+
+  if (partial.length > 0) {
     items.push({
-      key: 'unscheduled',
+      key: 'partial',
       tone: 'warning',
       title:
-        routine.unscheduled.length === 1
-          ? '1 tarefa ficou fora da rotina'
-          : `${routine.unscheduled.length} tarefas ficaram fora da rotina`,
+        partial.length === 1
+          ? '1 tarefa foi alocada com menos tempo do que precisa'
+          : `${partial.length} tarefas foram alocadas com menos tempo do que precisam`,
       body: (
-        <ul className="mt-1 flex flex-col gap-0.5">
-          {routine.unscheduled.map((item) => (
+        <ul className="mt-1 flex flex-col gap-1">
+          {partial.map((item) => (
             <li key={item.taskId}>
-              <span className="font-medium text-label">{item.title}</span> —{' '}
-              {UNSCHEDULED_REASON_LABEL[item.reason]}
+              <span className="font-medium text-label">{item.title}</span>:{' '}
+              {describeUnscheduled(item)}
             </li>
           ))}
         </ul>
       ),
-      actions: (
-        <Link
-          href="/tarefas"
-          className="pressable inline-flex h-11 items-center rounded-control bg-fill px-3.5 text-footnote font-medium text-label"
-        >
-          Ver tarefas
-        </Link>
+      actions: <TasksLink />,
+    });
+  }
+
+  if (leftOut.length > 0) {
+    items.push({
+      key: 'unscheduled',
+      tone: 'warning',
+      title:
+        leftOut.length === 1
+          ? '1 tarefa ficou fora da rotina'
+          : `${leftOut.length} tarefas ficaram fora da rotina`,
+      body: (
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {leftOut.map((item) => (
+            <li key={item.taskId}>
+              <span className="font-medium text-label">{item.title}</span> —{' '}
+              {describeUnscheduled(item)}
+            </li>
+          ))}
+        </ul>
       ),
+      actions: <TasksLink />,
     });
   }
 
   return <StatusStrip items={items} />;
+}
+
+function TasksLink() {
+  return (
+    <Link
+      href="/tarefas"
+      className="pressable inline-flex h-11 items-center rounded-control bg-fill px-3.5 text-footnote font-medium text-label"
+    >
+      Ver tarefas
+    </Link>
+  );
 }
 
 interface NoticeItem {

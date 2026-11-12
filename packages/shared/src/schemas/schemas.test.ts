@@ -13,6 +13,7 @@ import {
   loginSchema,
   quickInstructionSchema,
   registerSchema,
+  unscheduledTaskSchema,
 } from '../index';
 
 const commitment = {
@@ -193,5 +194,30 @@ describe('auth schemas', () => {
   it('does not re-check strength at login', () => {
     expect(loginSchema.safeParse({ email: 'a@b.co', password: 'x' }).success).toBe(true);
     expect(loginSchema.safeParse({ email: 'a@b.co', password: '' }).success).toBe(false);
+  });
+});
+
+describe('unscheduledTaskSchema', () => {
+  const base = { taskId: '6f1c2d3e-4b5a-4c6d-8e7f-901234567890', title: 'Atividade A' };
+
+  it('accepts a partial allocation with how much was needed and scheduled', () => {
+    const parsed = unscheduledTaskSchema.parse({
+      ...base,
+      reason: 'PARTIAL',
+      missingMinutes: 120,
+      neededMinutes: 480,
+      allocatedMinutes: 360,
+    });
+    expect(parsed).toMatchObject({ reason: 'PARTIAL', neededMinutes: 480, allocatedMinutes: 360 });
+  });
+
+  it('still reads routines saved before partial allocation existed (no extra fields)', () => {
+    expect(
+      unscheduledTaskSchema.safeParse({
+        ...base,
+        reason: 'DEADLINE_IMPOSSIBLE',
+        missingMinutes: 60,
+      }).success,
+    ).toBe(true);
   });
 });

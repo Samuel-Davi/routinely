@@ -163,20 +163,35 @@ describe('planRoutine', () => {
     expect(result.source).toBe('HEURISTIC');
   });
 
-  it('never sends impossible tasks to the AI and reports them', async () => {
-    const impossible = task('late', { minutes: 300, deadline: at('2026-11-09T18:00') });
+  it('never sends tasks that cannot fit whole to the AI: partial ones are squeezed in, hopeless ones reported', async () => {
+    const tooBig = task('late', { minutes: 300, deadline: at('2026-11-09T18:00') });
     const passed = task('old', { deadline: at('2026-11-08T18:00') });
     const { propose, requests } = scripted(validProposal);
     const result = await planRoutine({
-      tasks: [...tasks, impossible, passed],
+      tasks: [...tasks, tooBig, passed],
       context: ctx,
       propose,
     });
     expect(requests[0]?.tasks.map((t) => t.id)).toEqual(['a', 'b']);
     expect(result.source).toBe('AI');
+    // the deadline already passed: nothing to schedule
     expect(result.unscheduled).toEqual([
-      { taskId: 'late', reason: 'DEADLINE_IMPOSSIBLE', missingMinutes: 180 },
       { taskId: 'old', reason: 'DEADLINE_PASSED', missingMinutes: 60 },
+    ]);
+    // 300 min needed, but only the leftovers of the 120 free minutes before its deadline exist
+    // (the AI's two tasks took their share): it gets what is left instead of being dropped
+    const lateMinutes = result.blocks
+      .filter((b) => b.taskId === 'late')
+      .reduce((sum, b) => sum + durationMinutes(b), 0);
+    expect(lateMinutes).toBeGreaterThan(0);
+    expect(lateMinutes).toBeLessThanOrEqual(120);
+    expect(result.shortfalls).toEqual([
+      {
+        taskId: 'late',
+        neededMinutes: 300,
+        allocatedMinutes: lateMinutes,
+        missingMinutes: 300 - lateMinutes,
+      },
     ]);
   });
 
@@ -187,7 +202,13 @@ describe('planRoutine', () => {
       context: ctx,
       propose,
     });
-    expect(nothing).toEqual({ blocks: [], unscheduled: [], source: 'AI', notice: null });
+    expect(nothing).toEqual({
+      blocks: [],
+      unscheduled: [],
+      shortfalls: [],
+      source: 'AI',
+      notice: null,
+    });
     const onlyImpossible = await planRoutine({
       tasks: [task('old', { deadline: at('2026-11-08T18:00') })],
       context: ctx,
@@ -197,7 +218,7 @@ describe('planRoutine', () => {
     expect(requests).toHaveLength(0);
   });
 
-  it('reports tasks that fit alone but not together', async () => {
+  it('gives a task that fits alone but not together whatever is left, and says it is partial', async () => {
     const oneDay = context({ rangeEnd: '2026-11-09', commitments: workWeek });
     const result = await planRoutine({
       tasks: [
@@ -206,9 +227,37 @@ describe('planRoutine', () => {
       ],
       context: oneDay,
     });
-    expect(result.blocks.every((b) => b.taskId === 'a')).toBe(true);
-    expect(result.unscheduled).toEqual([
-      expect.objectContaining({ taskId: 'b', reason: 'DEADLINE_IMPOSSIBLE' }),
+    const minutesOf = (id: string) =>
+      result.blocks.filter((b) => b.taskId === id).reduce((sum, b) => sum + durationMinutes(b), 0);
+    expect(minutesOf('a')).toBe(240); // the more urgent task is whole
+    expect(minutesOf('b')).toBeGreaterThan(0);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.shortfalls).toEqual([
+      expect.objectContaining({
+        taskId: 'b',
+        neededMinutes: 240,
+        allocatedMinutes: minutesOf('b'),
+      }),
+    ]);
+  });
+
+  it("the author's case: a task needing 8h with only 6h free is scheduled for 6h and flagged", async () => {
+    // One free window of 6h (07:00-13:00 on Monday; the protected lunch takes the last hour) and
+    // nothing else to do: 8h are needed.
+    const week = context({
+      rangeEnd: '2026-11-09',
+      commitments: [{ id: 'c', daysOfWeek: [1], startTime: '13:00', endTime: '22:00' }],
+    });
+    const result = await planRoutine({
+      tasks: [task('a', { minutes: 480, deadline: at('2026-11-09T22:00') })],
+      context: week,
+    });
+    const placed = result.blocks.reduce((sum, b) => sum + durationMinutes(b), 0);
+    expect(placed).toBeGreaterThanOrEqual(270); // 5h of free time minus the breaks between blocks
+    expect(placed).toBeLessThan(480);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.shortfalls).toEqual([
+      { taskId: 'a', neededMinutes: 480, allocatedMinutes: placed, missingMinutes: 480 - placed },
     ]);
   });
 
@@ -277,12 +326,29 @@ function assertValidRoutine(
     if (!bothFixed) expect(current.start - previous.end).toBeGreaterThanOrEqual(breakMs);
   }
   const unscheduledIds = new Set(result.unscheduled.map((u) => u.taskId));
+  const shortfallById = new Map(result.shortfalls.map((s) => [s.taskId, s]));
   for (const t of tasks) {
     const own = result.blocks.filter((b) => b.taskId === t.id);
     const total = own.reduce((sum, b) => sum + durationMinutes(b), 0);
+    if (t.minutes <= 0) continue;
     if (unscheduledIds.has(t.id)) {
-      expect(total).toBe(0); // all or nothing
+      // nothing fits at all: nothing is scheduled, and it is not also reported as partial
+      expect(total).toBe(0);
+      expect(shortfallById.has(t.id)).toBe(false);
+    } else if (shortfallById.has(t.id)) {
+      // scheduled in part: everything reported is consistent with what was placed
+      const shortfall = shortfallById.get(t.id) as PlanResult['shortfalls'][number];
+      expect(total).toBeGreaterThan(0);
+      expect(total).toBeLessThan(t.minutes);
+      expect(shortfall).toEqual({
+        taskId: t.id,
+        neededMinutes: t.minutes,
+        allocatedMinutes: total,
+        missingMinutes: t.minutes - total,
+      });
+      if (!t.splittable) expect(own.length).toBe(1);
     } else {
+      // a task is never silently dropped or silently shortened
       expect(total).toBe(t.minutes);
       if (!t.splittable) expect(own.length).toBe(1);
     }

@@ -185,6 +185,15 @@ O app pode ficar público sem expor a chave do Gemini nem a cota gratuita.
 - **Reset diário da demo** (`demo-reset.yml`) por Actions, que também mantém o Supabase ativo; o GitHub desativa agendamentos de repositório público após 60 dias sem atividade.
 - **Não verificado:** nada disso foi executado em produção (não há contas nem credenciais aqui). Em aberto: se o RLS do Supabase afeta a conexão do Prisma, o valor correto de `TRUST_PROXY` atrás de Render + Vercel, a existência do botão de rollback no plano grátis do Render e as regiões disponíveis nele.
 
+## ADR-028 — Tarefa que não cabe inteira é alocada em parte e sinalizada (nunca descartada)
+
+- **Mudança de regra:** antes valia "tudo ou nada por tarefa" (ADR-016/011): se a tarefa não coubesse inteira antes do prazo, ficava **fora** da rotina. Na prática o usuário ainda precisa fazê-la, então agora o planejador **aloca tudo o que couber** e **avisa**: "precisa de 8h, mas só há 6h livres até o prazo. Foi alocada com 6h: faça com horário mais curto (faltam 2h)". Só fica "fora" a tarefa sem **nenhum** horário utilizável antes do prazo (por exemplo, prazo já passado).
+- **Como:** o heurístico tenta alocar a tarefa inteira; se faltar, `placePartial` usa toda a folga: tarefa divisível passa por todas as janelas (pedaços ≥ 30 min e, se ainda sobrar, de 15 min; vence a passada que deixa menos minutos faltando) e tarefa **indivisível** vira **um bloco encurtado** na maior janela (nunca acima do bloco de foco). O prazo nunca é ultrapassado. O resultado traz `shortfalls` (`neededMinutes`, `allocatedMinutes`, `missingMinutes`), que viram itens `PARTIAL` em `Routine.unscheduled` (JSON; campos novos opcionais, então rotinas antigas continuam válidas).
+- **IA:** continua só recebendo tarefas que cabem **inteiras** (ela precisa devolver totais exatos e o validador rejeita o contrário). As que só cabem em parte vão direto ao heurístico, depois dos blocos aceitos da IA, e ficam com o que sobrar. O validador segue árbitro final.
+- **Trade-off:** como a tarefa parcial ocupa as sobras, uma tarefa mais urgente que não coube inteira pode ficar com menos tempo do que teria se fosse planejada antes de tarefas menos urgentes que a IA encaixou. Aceito para manter o contrato "a IA propõe totais exatos"; se incomodar, o caminho é dar a vez às tarefas parciais mais urgentes antes da IA.
+- **UI:** o aviso é separado em "alocada com menos tempo do que precisa" (parcial) e "ficou fora" (sem horário), com a explicação por tarefa.
+- **Correção junto:** o teste aleatório de invariantes achou que dois blocos da **mesma tarefa** em janelas diferentes (separadas por um compromisso curto) podiam ficar a menos que a pausa mínima; a pausa agora vale entre janelas.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).

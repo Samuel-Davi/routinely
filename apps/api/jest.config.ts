@@ -3,6 +3,8 @@ import type { Config } from 'jest';
 const config: Config = {
   rootDir: '.',
   testEnvironment: 'node',
+  // Same reason as the web suite: do not starve the other suites running in parallel.
+  maxWorkers: '50%',
   testMatch: ['<rootDir>/src/**/*.spec.ts'],
   transform: { '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }] },
   setupFiles: ['<rootDir>/src/testing/jest-setup.ts'],

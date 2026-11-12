@@ -43,9 +43,23 @@ export interface EngineUnscheduled {
   missingMinutes: number;
 }
 
+/**
+ * A task that was scheduled, but for fewer minutes than it needs because not all of it fits before
+ * its deadline: the user still has to do it, in a shorter session, and is told so.
+ */
+export interface EngineShortfall {
+  taskId: string;
+  neededMinutes: number;
+  allocatedMinutes: number;
+  missingMinutes: number;
+}
+
 export interface PlanResult {
   blocks: EngineBlock[];
+  /** Tasks with nothing scheduled at all (no usable time before the deadline). */
   unscheduled: EngineUnscheduled[];
+  /** Tasks scheduled only in part. */
+  shortfalls: EngineShortfall[];
   source: RoutineSource;
   /** Why the AI was not (fully) used, in Portuguese; null when it was. */
   notice: string | null;

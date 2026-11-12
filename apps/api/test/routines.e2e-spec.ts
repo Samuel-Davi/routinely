@@ -297,7 +297,7 @@ describe('Routines (e2e, mocked LLM)', () => {
     expect(routine.blocks).toHaveLength(1);
   });
 
-  it('never schedules past an impossible deadline and reports unestimated tasks', async () => {
+  it('never schedules past the deadline: it uses the time that exists and flags the task as partial', async () => {
     const impossible = await createTask('Impossível', 600, '2026-11-09T20:00');
     const fine = await createTask('Possível', 60, '2026-11-13T22:00');
     const pending = await prisma.task.create({
@@ -310,20 +310,55 @@ describe('Routines (e2e, mocked LLM)', () => {
     });
 
     const routine = await generate();
-    expect(routine.blocks.map((block) => block.taskId)).toEqual([fine.id]);
+    // 600 min are needed by Monday 20:00 but only 225 min exist before it: those are scheduled
+    const impossibleBlocks = routine.blocks.filter((block) => block.taskId === impossible.id);
+    const allocated = impossibleBlocks.reduce(
+      (sum, block) => sum + (Date.parse(block.end) - Date.parse(block.start)) / 60_000,
+      0,
+    );
+    expect(allocated).toBeGreaterThan(0);
+    expect(allocated).toBeLessThan(600);
+    for (const block of impossibleBlocks) {
+      expect(Date.parse(block.end)).toBeLessThanOrEqual(at('2026-11-09T20:00').getTime());
+    }
+    expect(routine.blocks.some((block) => block.taskId === fine.id)).toBe(true);
     expect(routine.unscheduled).toEqual(
       expect.arrayContaining([
         {
           taskId: impossible.id,
           title: 'Impossível',
-          reason: 'DEADLINE_IMPOSSIBLE',
-          missingMinutes: 375,
+          reason: 'PARTIAL',
+          missingMinutes: 600 - allocated,
+          neededMinutes: 600,
+          allocatedMinutes: allocated,
         },
         { taskId: pending.id, title: 'Sem estimativa', reason: 'NOT_ESTIMATED', missingMinutes: 0 },
       ]),
     );
+    // it is scheduled, so it is no longer "to do" without a place in the calendar
     const tasks = (await http().get('/tasks')).body as { id: string; status: string }[];
-    expect(tasks.find((task) => task.id === impossible.id)?.status).toBe('TODO');
+    expect(tasks.find((task) => task.id === impossible.id)?.status).toBe('SCHEDULED');
+  });
+
+  it('a task that needs 8h with only 6h free is scheduled for the 6h and flagged, never dropped', async () => {
+    // Mon-Fri work 08-12 and 13-17 (beforeEach): free time before Tuesday 17:00 is limited.
+    const task = await createTask('Atividade A', 480, '2026-11-10T17:00');
+    const routine = await generate();
+    const own = routine.blocks.filter((block) => block.taskId === task.id);
+    const minutes = own.reduce(
+      (sum, block) => sum + (Date.parse(block.end) - Date.parse(block.start)) / 60_000,
+      0,
+    );
+    expect(minutes).toBeGreaterThan(0);
+    expect(minutes).toBeLessThan(480);
+    const warning = routine.unscheduled.find((item) => item.taskId === task.id);
+    expect(warning).toMatchObject({
+      reason: 'PARTIAL',
+      neededMinutes: 480,
+      allocatedMinutes: minutes,
+      missingMinutes: 480 - minutes,
+    });
+    await assertNoConflicts(routine);
   });
 
   it('keeps the travel time after the last in-person commitment free of tasks', async () => {

@@ -14,6 +14,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // `pnpm -r test` runs three suites at once: cap the workers so a busy machine does not time
+    // out while starting them ("Timeout waiting for worker to respond").
+    maxWorkers: 4,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,

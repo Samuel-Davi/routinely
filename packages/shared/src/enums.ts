@@ -51,6 +51,8 @@ export const UNSCHEDULED_REASONS = [
   'TOO_LONG_FOR_BLOCK',
   'NO_FREE_TIME',
   'NOT_ESTIMATED',
+  /** Scheduled, but with fewer minutes than the task needs: do it in a shorter session. */
+  'PARTIAL',
 ] as const;
 export const unscheduledReasonSchema = z.enum(UNSCHEDULED_REASONS);
 export type UnscheduledReason = z.infer<typeof unscheduledReasonSchema>;

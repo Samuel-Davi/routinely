@@ -1,4 +1,5 @@
 import {
+  describeUnscheduled,
   formatDate,
   formatDateTime,
   formatDuration,
@@ -66,5 +67,26 @@ describe('labels and formatters', () => {
     expect(replanReasonLabel('OVERDUE_BLOCK', 2)).toBe('2 blocos ficaram para trás');
     expect(replanReasonLabel('TASK_CHANGED', 1)).toBe('1 tarefa mudou');
     expect(replanReasonLabel('SCHEDULE_CHANGED', 1)).toContain('compromissos');
+  });
+});
+
+describe('describeUnscheduled', () => {
+  it('tells the user how much of a partial task was scheduled and that it needs a shorter session', () => {
+    expect(
+      describeUnscheduled({
+        reason: 'PARTIAL',
+        neededMinutes: 480,
+        allocatedMinutes: 360,
+        missingMinutes: 120,
+      }),
+    ).toBe(
+      'precisa de 8h, mas só há 6h livres até o prazo. Foi alocada com 6h: faça com horário mais curto (faltam 2h).',
+    );
+  });
+
+  it('keeps the plain reason for tasks that could not be scheduled at all', () => {
+    expect(describeUnscheduled({ reason: 'DEADLINE_PASSED', missingMinutes: 60 })).toBe(
+      'O prazo já passou',
+    );
   });
 });

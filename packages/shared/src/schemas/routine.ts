@@ -36,6 +36,9 @@ export const unscheduledTaskSchema = z.object({
   title: z.string(),
   reason: unscheduledReasonSchema,
   missingMinutes: z.number().int().nonnegative(),
+  /** For `PARTIAL`: minutes the task needs and minutes that were actually scheduled. */
+  neededMinutes: z.number().int().positive().optional(),
+  allocatedMinutes: z.number().int().nonnegative().optional(),
 });
 export type UnscheduledTask = z.infer<typeof unscheduledTaskSchema>;
 

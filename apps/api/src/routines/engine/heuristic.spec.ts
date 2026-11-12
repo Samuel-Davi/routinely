@@ -88,12 +88,26 @@ describe('scheduleHeuristic', () => {
     expect(show(result.blocks)).toEqual(['a 2026-11-09T17:00–18:30']);
   });
 
-  it('never schedules past the deadline: an impossible deadline is reported', () => {
+  it('never schedules past the deadline: it uses all the time there is and reports the shortfall', () => {
     const result = scheduleHeuristic(
       [task('a', { minutes: 180, deadline: at('2026-11-09T18:00') })],
       ctx,
     );
+    // 60 min before work + 60 min after it, both before the deadline: 120 of 180
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–08:00', 'a 2026-11-09T17:00–18:00']);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.shortfalls).toEqual([
+      { taskId: 'a', neededMinutes: 180, allocatedMinutes: 120, missingMinutes: 60 },
+    ]);
+  });
+
+  it('reports as unscheduled only a task with no usable time at all before its deadline', () => {
+    const result = scheduleHeuristic(
+      [task('a', { minutes: 60, deadline: at('2026-11-09T07:00') })],
+      context({ commitments: workWeek, now: at('2026-11-09T06:45') }),
+    );
     expect(result.blocks).toEqual([]);
+    expect(result.shortfalls).toEqual([]);
     expect(result.unscheduled).toEqual([
       { taskId: 'a', reason: 'DEADLINE_IMPOSSIBLE', missingMinutes: 60 },
     ]);
@@ -122,14 +136,17 @@ describe('scheduleHeuristic', () => {
     ]);
   });
 
-  it('reports an unsplittable task longer than the max block', () => {
+  it('shortens an unsplittable task longer than the max block to one focus block', () => {
     const result = scheduleHeuristic([task('a', { minutes: 120, splittable: false })], ctx);
-    expect(result.unscheduled).toEqual([
-      { taskId: 'a', reason: 'TOO_LONG_FOR_BLOCK', missingMinutes: 120 },
+    expect(result.unscheduled).toEqual([]);
+    expect(result.blocks).toHaveLength(1);
+    expect(durationMinutes(result.blocks[0] as { start: number; end: number })).toBe(90);
+    expect(result.shortfalls).toEqual([
+      { taskId: 'a', neededMinutes: 120, allocatedMinutes: 90, missingMinutes: 30 },
     ]);
   });
 
-  it('reports an unsplittable task larger than every free window', () => {
+  it('shortens an unsplittable task larger than every free window to the largest window', () => {
     const busy = context({
       rangeEnd: '2026-11-09',
       commitments: [{ id: 'c', daysOfWeek: [1], startTime: '08:00', endTime: '21:15' }],
@@ -138,9 +155,10 @@ describe('scheduleHeuristic', () => {
       [task('a', { minutes: 75, splittable: false, deadline: at('2026-11-09T22:00') })],
       busy,
     );
-    expect(result.blocks).toEqual([]);
-    expect(result.unscheduled).toEqual([
-      { taskId: 'a', reason: 'DEADLINE_IMPOSSIBLE', missingMinutes: 75 },
+    expect(result.unscheduled).toEqual([]);
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–08:00']);
+    expect(result.shortfalls).toEqual([
+      { taskId: 'a', neededMinutes: 75, allocatedMinutes: 60, missingMinutes: 15 },
     ]);
   });
 
@@ -176,10 +194,20 @@ describe('scheduleHeuristic', () => {
       ],
       oneDay,
     );
-    expect(result.blocks.every((b) => b.taskId === 'a')).toBe(true);
-    expect(result.unscheduled).toEqual([
-      { taskId: 'b', reason: 'DEADLINE_IMPOSSIBLE', missingMinutes: 30 },
+    // the more urgent task is whole; the other one gets what is left instead of being dropped
+    const bMinutes = result.blocks
+      .filter((b) => b.taskId === 'b')
+      .reduce((sum, b) => sum + durationMinutes(b), 0);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.shortfalls).toEqual([
+      {
+        taskId: 'b',
+        neededMinutes: 120,
+        allocatedMinutes: bMinutes,
+        missingMinutes: 120 - bMinutes,
+      },
     ]);
+    expect(bMinutes).toBeGreaterThan(0);
   });
 
   it('plans around locked blocks, keeping the break', () => {
@@ -207,6 +235,7 @@ describe('scheduleHeuristic', () => {
     expect(scheduleHeuristic([task('a', { minutes: 0 })], ctx)).toEqual({
       blocks: [],
       unscheduled: [],
+      shortfalls: [],
     });
   });
 
@@ -263,7 +292,7 @@ describe('scheduleHeuristic — fragmentation', () => {
     expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–08:30', 'a 2026-11-09T21:45–22:00']);
   });
 
-  it('reports the honest shortfall when even crumbs do not fit', () => {
+  it('schedules the most that fits and reports the honest shortfall when even crumbs do not fit', () => {
     // 105 free minutes in one window, but a block holds at most 90 and needs a break after.
     const day = context({
       rangeEnd: '2026-11-09',
@@ -273,10 +302,11 @@ describe('scheduleHeuristic — fragmentation', () => {
       [task('a', { minutes: 105, deadline: at('2026-11-09T22:00') })],
       day,
     );
-    expect(result.blocks).toEqual([]);
-    expect(result.unscheduled).toEqual([
-      { taskId: 'a', reason: 'DEADLINE_IMPOSSIBLE', missingMinutes: 15 },
+    expect(show(result.blocks)).toEqual(['a 2026-11-09T07:00–08:30']);
+    expect(result.shortfalls).toEqual([
+      { taskId: 'a', neededMinutes: 105, allocatedMinutes: 90, missingMinutes: 15 },
     ]);
+    expect(result.unscheduled).toEqual([]);
   });
 
   it('uses a single crumb only for the minutes that fit nowhere else', () => {

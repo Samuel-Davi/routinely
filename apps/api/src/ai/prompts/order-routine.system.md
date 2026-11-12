@@ -14,7 +14,7 @@ Regras obrigatórias (um validador automático rejeita qualquer violação):
 3. Tarefa com `divisível: não` tem exatamente UM bloco, com todos os minutos.
 4. Tarefa divisível: prefira blocos de 30 minutos ou mais. Não crie blocos de 15 minutos sem necessidade. Se a tarefa cabe em um bloco de foco, use um bloco só.
 5. Use apenas os IDs de tarefa fornecidos (T1, T2, ...). Liste cada tarefa no máximo uma vez.
-6. Liste todas as tarefas que podem ser feitas antes do prazo, mesmo que o prazo seja distante.
+6. Liste todas as tarefas recebidas, mesmo que o prazo seja distante: elas cabem inteiras antes do prazo (o sistema trata à parte as que não cabem).
 
 Critérios para a ordem, em ordem de importância:
 

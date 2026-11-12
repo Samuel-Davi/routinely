@@ -47,7 +47,10 @@ const acceptedMinutes = (result: ValidationResult) =>
 /**
  * The AI proposes; the backend validates.
  *
- *  1. Tasks that cannot fit even on an empty calendar are set aside up front.
+ *  1. Tasks are classified up front: those that fit whole go to the AI; those that fit only in
+ *     part ("squeezed") skip the AI (it must give exact totals) and are placed by the
+ *     heuristic with whatever time exists, flagged as shortfalls; those with no usable time at
+ *     all are reported as unscheduled.
  *  2. The model proposes; the validator keeps only fully valid tasks.
  *  3. On any issue, one retry with the stronger model and the list of problems.
  *  4. Whatever is still unplaced goes to the deterministic first-fit heuristic.
@@ -57,12 +60,14 @@ const acceptedMinutes = (result: ValidationResult) =>
 export async function planRoutine({ tasks, context, propose }: PlanInput): Promise<PlanResult> {
   const pending = tasks.filter((task) => task.minutes > 0);
 
-  // 1. Feasibility: a task that does not fit alone will never fit.
+  // 1. Feasibility: what fits whole, what fits only in part, and what cannot be scheduled at all.
   const impossible: EngineUnscheduled[] = [];
   const feasible: EngineTask[] = [];
+  const squeezed: EngineTask[] = [];
   for (const task of pending) {
     const alone = scheduleHeuristic([task], context);
     if (alone.unscheduled[0]) impossible.push(alone.unscheduled[0]);
+    else if (alone.shortfalls.length > 0) squeezed.push(task);
     else feasible.push(task);
   }
 
@@ -72,22 +77,26 @@ export async function planRoutine({ tasks, context, propose }: PlanInput): Promi
     aiWasFlawless: boolean,
     fallbackNotice: string,
   ): PlanResult => {
-    const rest = feasible.filter((task) => !acceptedTaskIds.includes(task.id));
+    const rest = [...feasible.filter((task) => !acceptedTaskIds.includes(task.id)), ...squeezed];
     const heuristic = scheduleHeuristic(rest, context, accepted);
     const blocks = [...accepted, ...heuristic.blocks].sort((a, b) => a.start - b.start);
     const unscheduled = [...impossible, ...heuristic.unscheduled];
+    const shortfalls = heuristic.shortfalls;
     if (accepted.length === 0) {
-      return { blocks, unscheduled, source: 'HEURISTIC', notice: fallbackNotice };
+      return { blocks, unscheduled, shortfalls, source: 'HEURISTIC', notice: fallbackNotice };
     }
     return aiWasFlawless
-      ? { blocks, unscheduled, source: 'AI', notice: null }
-      : { blocks, unscheduled, source: 'AI_REPAIRED', notice: REPAIRED_NOTICE };
+      ? { blocks, unscheduled, shortfalls, source: 'AI', notice: null }
+      : { blocks, unscheduled, shortfalls, source: 'AI_REPAIRED', notice: REPAIRED_NOTICE };
   };
 
   if (feasible.length === 0) {
+    // Nothing for the AI to propose: only partial placements (if any) remain.
+    const heuristic = scheduleHeuristic(squeezed, context);
     return {
-      blocks: [],
-      unscheduled: impossible,
+      blocks: heuristic.blocks,
+      unscheduled: [...impossible, ...heuristic.unscheduled],
+      shortfalls: heuristic.shortfalls,
       source: propose ? 'AI' : 'HEURISTIC',
       notice: null,
     };

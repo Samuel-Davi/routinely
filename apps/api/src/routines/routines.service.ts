@@ -292,6 +292,7 @@ export class RoutinesService implements OnApplicationBootstrap {
             ...planned,
             blocks: [...planned.blocks, ...rest.blocks].sort((a, b) => a.start - b.start),
             unscheduled: [...planned.unscheduled, ...rest.unscheduled],
+            shortfalls: [...planned.shortfalls, ...rest.shortfalls],
           }
         : planned;
       const plan =
@@ -319,6 +320,15 @@ export class RoutinesService implements OnApplicationBootstrap {
       ];
       const unscheduled: UnscheduledTask[] = [
         ...plan.unscheduled.map((item) => ({ ...item, title: titles.get(item.taskId) ?? '' })),
+        // Scheduled, but for less time than needed: the user is told to do it in a shorter session.
+        ...plan.shortfalls.map((item) => ({
+          taskId: item.taskId,
+          title: titles.get(item.taskId) ?? '',
+          reason: 'PARTIAL' as const,
+          missingMinutes: item.missingMinutes,
+          neededMinutes: item.neededMinutes,
+          allocatedMinutes: item.allocatedMinutes,
+        })),
         ...openTasks
           .filter((task) => task.estimationStatus !== 'DONE')
           .map((task) => ({

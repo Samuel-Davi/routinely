@@ -166,6 +166,34 @@ describe('WeekScreen', () => {
     await waitFor(() => expect(screen.queryByText('Montando sua rotina…')).not.toBeInTheDocument());
   });
 
+  it('says "only 6h of 8h" for a task scheduled with less time than it needs', async () => {
+    mockApi({
+      routine: makeRoutine({
+        source: 'AI',
+        notice: null,
+        unscheduled: [
+          {
+            taskId: uuid(81),
+            title: 'Atividade A',
+            reason: 'PARTIAL',
+            missingMinutes: 120,
+            neededMinutes: 480,
+            allocatedMinutes: 360,
+          },
+        ],
+      }),
+    });
+    renderWithProviders(<WeekScreen />);
+    const strip = await screen.findByRole('region', { name: 'Avisos da rotina' });
+    expect(strip).toHaveTextContent('1 tarefa foi alocada com menos tempo do que precisa');
+    // it is NOT presented as left out of the routine
+    expect(strip).not.toHaveTextContent('ficou fora da rotina');
+    await userEvent.click(within(strip).getByRole('button', { name: /Ver detalhes/ }));
+    expect(strip).toHaveTextContent('Atividade A');
+    expect(strip).toHaveTextContent('precisa de 8h, mas só há 6h livres até o prazo');
+    expect(strip).toHaveTextContent('faça com horário mais curto');
+  });
+
   it('shows why a routine has unscheduled tasks or was repaired', async () => {
     mockApi({
       routine: makeRoutine({

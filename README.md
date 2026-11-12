@@ -7,7 +7,7 @@
 Gera, com IA, uma **rotina semanal** a partir dos seus compromissos fixos e das suas tarefas com prioridade e prazo.
 
 - Compromissos fixos semanais e tarefas (CRUD), com **estimativa de esforço por IA** (complexidade, duração, divisível) e ajuste manual.
-- **Gerar rotina**: as tarefas são distribuídas nos horários livres, respeitando janela diária, almoço, bloco máximo de foco, intervalo entre blocos e prazos.
+- **Gerar rotina**: as tarefas são distribuídas nos horários livres, respeitando janela diária, almoço, bloco máximo de foco, intervalo entre blocos e prazos. Se uma tarefa não cabe inteira (ex.: precisa de 8h e só há 6h), ela é **alocada com o que couber** e a rotina avisa para fazê-la em horário mais curto; nada é deixado de fora quando existe tempo.
 - Calendário semanal (visão diária com swipe no celular), **drag & drop** para mover/redimensionar com validação de conflito em tempo real.
 - **Replanejar** só o futuro, preservando blocos travados e concluídos; sugestão automática quando a rotina fica desatualizada.
 - Concluir blocos/tarefas e **histórico de versões** com diff resumido e restauração.

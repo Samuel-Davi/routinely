@@ -75,7 +75,25 @@ export const UNSCHEDULED_REASON_LABEL: Record<UnscheduledReason, string> = {
   TOO_LONG_FOR_BLOCK: 'É maior que um bloco de foco e não pode ser dividida',
   NO_FREE_TIME: 'Sem horário livre no período planejado',
   NOT_ESTIMATED: 'Ainda sem estimativa de duração',
+  PARTIAL: 'Só coube uma parte antes do prazo',
 };
+
+/**
+ * What to tell the user about a task that did not get all the time it needs. A partial task is
+ * scheduled (the user still has to do it): the message says how much, and that it must be done
+ * in a shorter session.
+ */
+export function describeUnscheduled(item: {
+  reason: UnscheduledReason;
+  missingMinutes: number;
+  neededMinutes?: number;
+  allocatedMinutes?: number;
+}): string {
+  if (item.reason !== 'PARTIAL') return UNSCHEDULED_REASON_LABEL[item.reason];
+  const needed = item.neededMinutes ?? item.missingMinutes;
+  const allocated = item.allocatedMinutes ?? 0;
+  return `precisa de ${formatDuration(needed)}, mas só há ${formatDuration(allocated)} livres até o prazo. Foi alocada com ${formatDuration(allocated)}: faça com horário mais curto (faltam ${formatDuration(item.missingMinutes)}).`;
+}
 
 export const VIOLATION_LABEL: Record<PlacementViolation, string> = {
   INVALID_RANGE: 'Horário inválido',

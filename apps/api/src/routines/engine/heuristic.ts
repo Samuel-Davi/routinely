@@ -6,7 +6,13 @@ import {
   type Interval,
 } from '@routinely/shared';
 import { computeFreeWindows } from './free-windows';
-import type { EngineBlock, EngineTask, EngineUnscheduled, PlanningContext } from './types';
+import type {
+  EngineBlock,
+  EngineShortfall,
+  EngineTask,
+  EngineUnscheduled,
+  PlanningContext,
+} from './types';
 
 const GRID_MS = GRID_MINUTES * MINUTE_MS;
 
@@ -25,7 +31,10 @@ export function compareTasks(a: EngineTask, b: EngineTask): number {
 
 export interface HeuristicResult {
   blocks: EngineBlock[];
+  /** Nothing could be scheduled for these. */
   unscheduled: EngineUnscheduled[];
+  /** Scheduled in part only: everything that fits before the deadline was used. */
+  shortfalls: EngineShortfall[];
 }
 
 /** Pieces of a split task are at least this long, unless nothing else makes it fit. */
@@ -51,10 +60,13 @@ function placeTask(
 ): Placement {
   const blocks: EngineBlock[] = [];
   let remaining = task.minutes * MINUTE_MS;
+  // The break between two blocks of the same task also holds across windows (e.g. two windows
+  // separated by a short commitment): remember where the last block ended.
+  let lastEnd = Number.NEGATIVE_INFINITY;
 
   for (const window of windows) {
     const end = Math.min(window.end, Math.floor(task.deadline / GRID_MS) * GRID_MS);
-    let cursor = window.start;
+    let cursor = Math.max(window.start, lastEnd + breakMs);
     while (remaining > 0 && end - cursor >= GRID_MS) {
       let size = Math.min(remaining, maxBlockMs, end - cursor);
       // An unsplittable task needs one window that takes it whole.
@@ -72,6 +84,7 @@ function placeTask(
         rationale: HEURISTIC_RATIONALE,
       });
       remaining -= size;
+      lastEnd = cursor + size;
       cursor += size + breakMs;
     }
     if (remaining === 0) break;
@@ -149,6 +162,47 @@ function placeSplittable(
   return placeTask(task, windows, maxBlockMs, breakMs);
 }
 
+/**
+ * Best effort when a task does not fit whole before its deadline: schedule as many minutes as
+ * there is room for, so the user can still start it (and is told it is a shorter session).
+ *  - splittable: first-fit over every free window; the pass with the fewest missing minutes wins
+ *    (pieces of 30+ minutes first, then 15 minute pieces to squeeze in whatever is left);
+ *  - not splittable: one block, as long as the longest usable window allows (never past the
+ *    focus block), in the earliest window that gives that length.
+ */
+function placePartial(
+  task: EngineTask,
+  windows: readonly Interval[],
+  maxBlockMs: number,
+  breakMs: number,
+): Placement {
+  if (task.splittable) {
+    const preferred = placeTask(task, windows, maxBlockMs, breakMs, PREFERRED_MIN_CHUNK_MS);
+    const squeezed = placeTask(task, windows, maxBlockMs, breakMs);
+    return squeezed.missingMinutes < preferred.missingMinutes ? squeezed : preferred;
+  }
+  const deadline = Math.floor(task.deadline / GRID_MS) * GRID_MS;
+  const wanted = Math.min(task.minutes * MINUTE_MS, maxBlockMs);
+  const usable = windows.map((window) => ({
+    start: window.start,
+    length: Math.min(Math.min(window.end, deadline) - window.start, wanted),
+  }));
+  const best = Math.max(0, ...usable.map((window) => window.length));
+  const chosen = usable.find((window) => window.length === best);
+  if (!chosen || best < GRID_MS) return { blocks: [], missingMinutes: task.minutes };
+  return {
+    blocks: [
+      {
+        taskId: task.id,
+        start: chosen.start,
+        end: chosen.start + best,
+        rationale: HEURISTIC_RATIONALE,
+      },
+    ],
+    missingMinutes: task.minutes - best / MINUTE_MS,
+  };
+}
+
 /** Joins touching blocks of the same task when the result still fits one focus block. */
 export function mergeTouchingBlocks(
   blocks: readonly EngineBlock[],
@@ -170,8 +224,10 @@ export function mergeTouchingBlocks(
 
 /**
  * Deterministic fallback planner: order by deadline/priority/complexity and place
- * each task first-fit in the free windows. All or nothing per task — a task that
- * cannot be fully placed before its deadline is reported, never scheduled late.
+ * each task first-fit in the free windows. Never late and never dropped when there is
+ * room: a task that does not fit whole before its deadline gets everything that does fit
+ * (reported as a shortfall, so the UI can say "only 6h of 8h"); only a task with no usable
+ * time at all before its deadline is reported as unscheduled.
  */
 export function scheduleHeuristic(
   tasks: readonly EngineTask[],
@@ -187,6 +243,7 @@ export function scheduleHeuristic(
   const placed: EngineBlock[] = [...occupied];
   const blocks: EngineBlock[] = [];
   const unscheduled: EngineUnscheduled[] = [];
+  const shortfalls: EngineShortfall[] = [];
 
   for (const task of [...tasks].sort(compareTasks)) {
     if (task.minutes <= 0) continue;
@@ -198,30 +255,38 @@ export function scheduleHeuristic(
       });
       continue;
     }
-    if (!task.splittable && task.minutes > prefs.maxFocusBlockMinutes) {
-      unscheduled.push({
-        taskId: task.id,
-        reason: 'TOO_LONG_FOR_BLOCK',
-        missingMinutes: task.minutes,
-      });
-      continue;
-    }
-    const attempt = task.splittable
-      ? placeSplittable(task, context, placed, maxBlockMs, breakMs)
-      : placeTask(task, computeFreeWindows(context, placed), maxBlockMs, breakMs);
-    if (attempt.missingMinutes > 0) {
+    // An unsplittable task longer than a focus block can never fit whole: go straight to partial.
+    const tooLongForBlock = !task.splittable && task.minutes > prefs.maxFocusBlockMinutes;
+    const full = tooLongForBlock
+      ? { blocks: [], missingMinutes: task.minutes }
+      : task.splittable
+        ? placeSplittable(task, context, placed, maxBlockMs, breakMs)
+        : placeTask(task, computeFreeWindows(context, placed), maxBlockMs, breakMs);
+    const attempt =
+      full.missingMinutes > 0
+        ? placePartial(task, computeFreeWindows(context, placed), maxBlockMs, breakMs)
+        : full;
+    if (attempt.blocks.length === 0) {
       unscheduled.push({
         taskId: task.id,
         // The deadline is beyond the planned range: the range is simply full.
         reason: task.deadline > rangeEnd ? 'NO_FREE_TIME' : 'DEADLINE_IMPOSSIBLE',
-        missingMinutes: attempt.missingMinutes,
+        missingMinutes: task.minutes,
       });
       continue;
     }
     const taskBlocks = mergeTouchingBlocks(attempt.blocks, prefs.maxFocusBlockMinutes);
     placed.push(...taskBlocks);
     blocks.push(...taskBlocks);
+    if (attempt.missingMinutes > 0) {
+      shortfalls.push({
+        taskId: task.id,
+        neededMinutes: task.minutes,
+        allocatedMinutes: task.minutes - attempt.missingMinutes,
+        missingMinutes: attempt.missingMinutes,
+      });
+    }
   }
 
-  return { blocks: blocks.sort((a, b) => a.start - b.start), unscheduled };
+  return { blocks: blocks.sort((a, b) => a.start - b.start), unscheduled, shortfalls };
 }

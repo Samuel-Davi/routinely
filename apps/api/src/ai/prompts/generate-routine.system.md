@@ -13,7 +13,7 @@ Regras obrigatórias (um validador automático rejeita qualquer violação):
 7. A soma dos blocos de cada tarefa deve ser EXATAMENTE os minutos pedidos para ela. Nem mais, nem menos.
 8. Tarefa com `divisível: não` deve ocupar um único bloco. Tarefa divisível pode ser repartida, com blocos de no mínimo 30 minutos sempre que possível.
 9. Use apenas os IDs de tarefa fornecidos (T1, T2, ...). Não invente tarefas.
-10. Se uma tarefa não couber inteira antes do prazo, NÃO a aloque (deixe-a de fora por completo).
+10. As tarefas que você recebe cabem inteiras antes do prazo (o sistema trata à parte as que não cabem, alocando só o que couber). Se mesmo assim não conseguir alocar uma tarefa inteira, deixe-a de fora por completo: não aloque parte dela.
 
 Critérios de qualidade, em ordem:
 
