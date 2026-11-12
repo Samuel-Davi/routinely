@@ -1,8 +1,6 @@
 # Routinely
 
-<!-- AÇÃO MANUAL (depois do primeiro push, ver docs/DEPLOY.md, passo 1): troque DONO/REPO e remova este comentário
-[![CI](https://github.com/DONO/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/DONO/REPO/actions/workflows/ci.yml)
--->
+[![CI](https://github.com/Samuel-Davi/app-rotina-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/Samuel-Davi/app-rotina-AI/actions/workflows/ci.yml)
 
 Gera, com IA, uma **rotina semanal** a partir dos seus compromissos fixos e das suas tarefas com prioridade e prazo.
 
