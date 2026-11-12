@@ -164,7 +164,12 @@ describe('planRoutine', () => {
   });
 
   it('never sends tasks that cannot fit whole to the AI: partial ones are squeezed in, hopeless ones reported', async () => {
-    const tooBig = task('late', { minutes: 300, deadline: at('2026-11-09T18:00') });
+    // a different priority than a and b: they do not compete with it, so they stay with the AI
+    const tooBig = task('late', {
+      minutes: 300,
+      deadline: at('2026-11-09T18:00'),
+      priority: 'URGENT',
+    });
     const passed = task('old', { deadline: at('2026-11-08T18:00') });
     const { propose, requests } = scripted(validProposal);
     const result = await planRoutine({
@@ -239,6 +244,27 @@ describe('planRoutine', () => {
         allocatedMinutes: minutesOf('b'),
       }),
     ]);
+  });
+
+  it('same-priority tasks that fit alone but not together skip the AI and share the shortage evenly', async () => {
+    // 300 free minutes before 12:00 on Monday; each task needs 240 and fits alone, not together.
+    const morning = context({ rangeEnd: '2026-11-09' });
+    const { propose, requests } = scripted([]);
+    const result = await planRoutine({
+      tasks: [
+        task('a', { minutes: 240, deadline: at('2026-11-09T10:00'), priority: 'HIGH' }),
+        task('b', { minutes: 240, deadline: at('2026-11-09T12:00'), priority: 'HIGH' }),
+        task('c', { minutes: 30, deadline: at('2026-11-13T18:00'), priority: 'LOW' }),
+      ],
+      context: morning,
+      propose,
+    });
+    // only the uncontested low-priority task is offered to the AI
+    expect(requests[0]?.tasks.map((t) => t.id)).toEqual(['c']);
+    const minutesOf = (id: string) =>
+      result.blocks.filter((x) => x.taskId === id).reduce((sum, x) => sum + durationMinutes(x), 0);
+    expect(Math.abs(minutesOf('a') - minutesOf('b'))).toBeLessThanOrEqual(30);
+    expect(result.shortfalls.map((s) => s.taskId).sort()).toEqual(['a', 'b']);
   });
 
   it("the author's case: a task needing 8h with only 6h free is scheduled for 6h and flagged", async () => {

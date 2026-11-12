@@ -387,3 +387,80 @@ describe('mergeTouchingBlocks', () => {
     expect(mergeTouchingBlocks(blocks, 90)).toHaveLength(2);
   });
 });
+
+describe('scheduleHeuristic: fairness between tasks of the same priority', () => {
+  const minutesOf = (blocks: { taskId: string; start: number; end: number }[], id: string) =>
+    blocks.filter((b) => b.taskId === id).reduce((sum, b) => sum + durationMinutes(b), 0);
+  // Monday 07:00-12:00 is free (300 min); the lunch starts at 12:00.
+  const morning = context({ rangeEnd: '2026-11-09' });
+
+  it("splits the scarce time evenly between same-priority tasks, even with different deadlines (the author's case)", () => {
+    const early = task('early', {
+      minutes: 240,
+      deadline: at('2026-11-09T10:00'),
+      priority: 'HIGH',
+    });
+    const late = task('late', { minutes: 240, deadline: at('2026-11-09T12:00'), priority: 'HIGH' });
+    const result = scheduleHeuristic([early, late], morning);
+
+    const a = minutesOf(result.blocks, 'early');
+    const b = minutesOf(result.blocks, 'late');
+    // before: 'early' took everything before 10:00 and 'late' got the crumbs after it
+    expect(Math.abs(a - b)).toBeLessThanOrEqual(30);
+    expect(a).toBeGreaterThan(90);
+    expect(b).toBeGreaterThan(90);
+    // and (almost) no time is wasted compared with the deadline-first split (255 min):
+    // one more block means one more break
+    expect(a + b).toBeGreaterThanOrEqual(230);
+    expect(result.shortfalls.map((s) => s.taskId).sort()).toEqual(['early', 'late']);
+    for (const s of result.shortfalls) {
+      expect(s.allocatedMinutes).toBe(minutesOf(result.blocks, s.taskId));
+      expect(s.missingMinutes).toBe(240 - s.allocatedMinutes);
+    }
+    // deadlines still hold
+    for (const b of result.blocks.filter((x) => x.taskId === 'early')) {
+      expect(b.end).toBeLessThanOrEqual(at('2026-11-09T10:00'));
+    }
+  });
+
+  it('does not use more total time than the deadline-first split would', () => {
+    const tasks = [
+      task('early', { minutes: 240, deadline: at('2026-11-09T10:00'), priority: 'HIGH' }),
+      task('late', { minutes: 240, deadline: at('2026-11-09T12:00'), priority: 'HIGH' }),
+    ];
+    const fair = scheduleHeuristic(tasks, morning);
+    const solo = tasks.map((t) => scheduleHeuristic([t], morning).blocks);
+    const used = fair.blocks.reduce((sum, b) => sum + durationMinutes(b), 0);
+    // never beyond the 300 free minutes
+    expect(used).toBeLessThanOrEqual(300);
+    expect(solo.every((blocks) => blocks.length > 0)).toBe(true);
+  });
+
+  it('keeps deadline-first order between DIFFERENT priorities (only equal priorities are balanced)', () => {
+    const result = scheduleHeuristic(
+      [
+        task('early', { minutes: 240, deadline: at('2026-11-09T10:00'), priority: 'HIGH' }),
+        task('late', { minutes: 240, deadline: at('2026-11-09T12:00'), priority: 'LOW' }),
+      ],
+      morning,
+    );
+    expect(minutesOf(result.blocks, 'early')).toBeGreaterThan(minutesOf(result.blocks, 'late'));
+  });
+
+  it('does not rebalance a single partial task or unsplittable ones', () => {
+    const single = scheduleHeuristic(
+      [task('only', { minutes: 600, deadline: at('2026-11-09T12:00') })],
+      morning,
+    );
+    expect(single.shortfalls).toHaveLength(1);
+    const fixed = scheduleHeuristic(
+      [
+        task('x', { minutes: 120, splittable: false, deadline: at('2026-11-09T10:00') }),
+        task('y', { minutes: 120, splittable: false, deadline: at('2026-11-09T12:00') }),
+      ],
+      morning,
+    );
+    // each unsplittable task keeps one block
+    expect(fixed.blocks.filter((b) => b.taskId === 'x')).toHaveLength(1);
+  });
+});

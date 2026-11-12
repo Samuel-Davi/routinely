@@ -90,6 +90,21 @@ export async function planRoutine({ tasks, context, propose }: PlanInput): Promi
       : { blocks, unscheduled, shortfalls, source: 'AI_REPAIRED', notice: REPAIRED_NOTICE };
   };
 
+  // Same-priority tasks that fit alone but not together compete for the same time. The AI must
+  // give exact totals, so it cannot share scarce time fairly: those priorities go to the
+  // deterministic planner (which splits the shortage evenly) and the AI keeps the rest.
+  const probe = scheduleHeuristic([...feasible, ...squeezed], context);
+  const contended = new Set(
+    [...feasible, ...squeezed]
+      .filter((task) => task.splittable && probe.shortfalls.some((item) => item.taskId === task.id))
+      .map((task) => task.priority),
+  );
+  for (let index = feasible.length - 1; index >= 0; index -= 1) {
+    const task = feasible[index] as EngineTask;
+    if (task.splittable && contended.has(task.priority))
+      squeezed.push(...feasible.splice(index, 1));
+  }
+
   if (feasible.length === 0) {
     // Nothing for the AI to propose: only partial placements (if any) remain.
     const heuristic = scheduleHeuristic(squeezed, context);

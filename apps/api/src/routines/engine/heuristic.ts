@@ -5,6 +5,7 @@ import {
   dayWindow,
   type Interval,
 } from '@routinely/shared';
+import { fairTargets } from './fair-share';
 import { computeFreeWindows } from './free-windows';
 import type {
   EngineBlock,
@@ -288,5 +289,170 @@ export function scheduleHeuristic(
     }
   }
 
-  return { blocks: blocks.sort((a, b) => a.start - b.start), unscheduled, shortfalls };
+  const balanced = rebalanceShortfalls({ tasks, blocks, shortfalls, occupied, context });
+  return {
+    blocks: balanced.blocks.sort((a, b) => a.start - b.start),
+    unscheduled,
+    shortfalls: balanced.shortfalls,
+  };
+}
+
+interface RebalanceInput {
+  tasks: readonly EngineTask[];
+  blocks: EngineBlock[];
+  shortfalls: EngineShortfall[];
+  occupied: readonly EngineBlock[];
+  context: PlanningContext;
+}
+
+const minutesOf = (blocks: readonly EngineBlock[], taskId: string) =>
+  totalMinutes(blocks.filter((block) => block.taskId === taskId));
+
+const totalMinutes = (blocks: readonly EngineBlock[]) =>
+  blocks.reduce((sum, block) => sum + (block.end - block.start) / MINUTE_MS, 0);
+
+/**
+ * Deadline-first placement is optimal for using the time but unfair when time is short: the task
+ * due first takes everything before its deadline and a same-priority task due later gets only
+ * the crumbs. For splittable tasks of the SAME priority that all came out partial, give each the
+ * same share of what it needs (max-min fair, see `fairTargets`), never less time overall.
+ */
+function rebalanceShortfalls(input: RebalanceInput): {
+  blocks: EngineBlock[];
+  shortfalls: EngineShortfall[];
+} {
+  const { tasks, context, occupied } = input;
+  let { blocks, shortfalls } = input;
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  // A priority is "contended" when some task of it came out partial: then ALL its splittable
+  // tasks that got time are sharing the same scarce time (a task that happened to fit whole
+  // because it was placed first may be the one that took the others' share).
+  const priorities = [
+    ...new Set(
+      shortfalls.flatMap((item) => {
+        const task = byId.get(item.taskId) as EngineTask;
+        return task.splittable ? [task.priority] : [];
+      }),
+    ),
+  ];
+
+  for (const priority of priorities) {
+    const group = tasks.filter(
+      (task) =>
+        task.priority === priority &&
+        task.splittable &&
+        task.minutes > 0 &&
+        blocks.some((block) => block.taskId === task.id),
+    );
+    if (group.length < 2) continue;
+    const ids = new Set(group.map((task) => task.id));
+    const result = fairPlacement(
+      group,
+      [...occupied, ...blocks.filter((block) => !ids.has(block.taskId))],
+      context,
+    );
+    const before = group.map((task) => minutesOf(blocks, task.id) / task.minutes);
+    const after = group.map((task) => minutesOf(result.blocks, task.id) / task.minutes);
+    // Take the new split only if it helps the worst-off task, leaves nobody with nothing and does
+    // not waste time (an extra block costs a break, so a small loss is expected: at most 10%).
+    const keepsTime =
+      totalMinutes(result.blocks) >= 0.9 * totalMinutes(blocks.filter((b) => ids.has(b.taskId)));
+    if (result.starved > 0 || !keepsTime || Math.min(...after) <= Math.min(...before)) continue;
+    blocks = [...blocks.filter((block) => !ids.has(block.taskId)), ...result.blocks];
+    shortfalls = [...shortfalls.filter((item) => !ids.has(item.taskId)), ...result.shortfalls];
+  }
+  return { blocks, shortfalls };
+}
+
+/** Places `group` (splittable, same priority) with fair targets, then tops up with the leftovers. */
+function fairPlacement(
+  group: readonly EngineTask[],
+  fixed: readonly EngineBlock[],
+  context: PlanningContext,
+): { blocks: EngineBlock[]; shortfalls: EngineShortfall[]; starved: number } {
+  const { prefs } = context;
+  const maxBlockMs = prefs.maxFocusBlockMinutes * MINUTE_MS;
+  const breakMs = prefs.minBreakMinutes * MINUTE_MS;
+  const deadlineOf = (task: EngineTask) => Math.floor(task.deadline / GRID_MS) * GRID_MS;
+
+  // Capacity per deadline segment: usable minutes, discounted for the breaks blocks need.
+  const deadlines = [...new Set(group.map(deadlineOf))].sort((a, b) => a - b);
+  const efficiency = maxBlockMs / (maxBlockMs + breakMs);
+  const windows = computeFreeWindows(context, fixed);
+  const capacity = deadlines.map((hi, k) => {
+    const lo = k === 0 ? Number.NEGATIVE_INFINITY : (deadlines[k - 1] as number);
+    return windows.reduce(
+      (sum, window) =>
+        sum +
+        (Math.max(0, Math.min(window.end, hi) - Math.max(window.start, lo)) / MINUTE_MS) *
+          efficiency,
+      0,
+    );
+  });
+  const targets = fairTargets(
+    group.map((task) => ({
+      need: task.minutes,
+      deadlineIndex: deadlines.indexOf(deadlineOf(task)),
+    })),
+    capacity,
+  );
+
+  const placed: EngineBlock[] = [...fixed];
+  const mine = new Map<string, EngineBlock[]>(group.map((task) => [task.id, []]));
+  const allocated = new Map<string, number>(group.map((task) => [task.id, 0]));
+  const place = (task: EngineTask, minutes: number): number => {
+    const budget = { ...task, minutes };
+    const full = placeSplittable(budget, context, placed, maxBlockMs, breakMs);
+    const attempt =
+      full.missingMinutes > 0
+        ? placePartial(budget, computeFreeWindows(context, placed), maxBlockMs, breakMs)
+        : full;
+    placed.push(...attempt.blocks);
+    (mine.get(task.id) as EngineBlock[]).push(...attempt.blocks);
+    const gained = minutes - attempt.missingMinutes;
+    allocated.set(task.id, (allocated.get(task.id) as number) + gained);
+    return gained;
+  };
+
+  // 1. Each task's fair share, earliest deadline first.
+  for (const task of [...group].sort(compareTasks)) {
+    const target =
+      Math.floor((targets[group.indexOf(task)] as number) / GRID_MINUTES) * GRID_MINUTES;
+    if (target > 0) place(task, target);
+  }
+  // 2. Whatever the estimates missed (breaks, window shapes): one block at a time to whoever has
+  //    the lowest completion ratio, so the split stays even.
+  for (;;) {
+    const hungry = group
+      .filter((task) => (allocated.get(task.id) as number) < task.minutes)
+      .sort(
+        (a, b) =>
+          (allocated.get(a.id) as number) / a.minutes -
+            (allocated.get(b.id) as number) / b.minutes || compareTasks(a, b),
+      );
+    const grew = hungry.some((task) => {
+      const remaining = task.minutes - (allocated.get(task.id) as number);
+      return place(task, Math.min(remaining, prefs.maxFocusBlockMinutes)) > 0;
+    });
+    if (!grew) break;
+  }
+
+  const blocks = group.flatMap((task) =>
+    mergeTouchingBlocks(mine.get(task.id) as EngineBlock[], prefs.maxFocusBlockMinutes),
+  );
+  const shortfalls = group.flatMap((task) => {
+    const minutes = allocated.get(task.id) as number;
+    return minutes < task.minutes && minutes > 0
+      ? [
+          {
+            taskId: task.id,
+            neededMinutes: task.minutes,
+            allocatedMinutes: minutes,
+            missingMinutes: task.minutes - minutes,
+          },
+        ]
+      : [];
+  });
+  const starved = group.filter((task) => (allocated.get(task.id) as number) === 0).length;
+  return { blocks, shortfalls, starved };
 }
