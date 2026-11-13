@@ -1,8 +1,7 @@
 # Deploy: CI, CD e modo portfólio
 
-Guia para publicar o Routinely de graça e manter o deploy automático. Foi escrito para quem nunca fez:
-siga os passos **em ordem**. Todo passo que exige uma conta sua, um clique no painel ou um segredo está marcado
-como **AÇÃO MANUAL** (eu não crio contas, não faço push e não tenho credenciais).
+Guia para publicar o Routinely de graça e manter o deploy automático. Os passos estão em ordem; os que exigem
+uma conta, um clique no painel de uma plataforma ou um segredo são feitos manualmente por quem publica.
 
 > Os limites abaixo foram conferidos nas páginas oficiais em **11/11/2026**. Planos gratuitos mudam sem aviso:
 > reconfira antes de depender de um número.
@@ -22,9 +21,9 @@ Navegador ──► Vercel (Next.js: páginas + proxy /api/*) ──► Render (
 
 | Peça  | Escolha                                 | Limites relevantes (fonte)                                                                                                                                                                                                                                                                                                                                                                                            | Plano B                                                                                                                                                                                                                                                                                                                                                                         |
 | ----- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Front | **Vercel Hobby**                        | Grátis, mas **só uso pessoal e não comercial** ([Hobby](https://vercel.com/docs/plans/hobby)): serve para portfólio, não para cobrar de clientes. 100 GB de transferência rápida, 1 milhão de requisições de CDN e de invocações de função por mês; função com até 300 s; 100 deploys por dia. [Deploy hooks](https://vercel.com/docs/deploy-hooks): 5 por projeto e 60 disparos por hora.                            | O mesmo `Dockerfile` do web em um segundo serviço do Render (mas veja a nota das 750 h). Não pesquisei Netlify/Cloudflare Pages.                                                                                                                                                                                                                                                |
+| Front | **Vercel Hobby**                        | Grátis, mas **só uso pessoal e não comercial** ([Hobby](https://vercel.com/docs/plans/hobby)): serve para portfólio, não para cobrar de clientes. 100 GB de transferência rápida, 1 milhão de requisições de CDN e de invocações de função por mês; função com até 300 s; 100 deploys por dia. [Deploy hooks](https://vercel.com/docs/deploy-hooks): 5 por projeto e 60 disparos por hora.                            | O mesmo `Dockerfile` do web em um segundo serviço do Render (mas veja a nota das 750 h).                                                                                                                                                                                                                                                                                        |
 | API   | **Render, web service grátis** (Docker) | [Free](https://render.com/docs/free): **dorme após 15 min sem tráfego e leva cerca de 1 minuto para acordar**; **750 horas grátis por mês por workspace** (um serviço ligado o mês inteiro usa ~744 h; dois não cabem); serviço parado não gasta horas. Banda e minutos de build: a página não traz números, veja em _Billing_.                                                                                       | [Railway](https://docs.railway.com/reference/pricing/plans): plano Free com US$ 1 de crédito/mês (1 réplica, 0,5 GB de RAM, 1 vCPU) ou Hobby a US$ 5/mês com US$ 5 de uso incluído. [Fly.io](https://docs.fly.io/about/pricing): **não há plano grátis**; US$ 1 de crédito por 7 dias e depois cartão; uma máquina pequena (256 MB) custa ~US$ 2,19/mês + US$ 0,02/GB de saída. |
-| Banco | **Supabase Free**                       | [Planos](https://supabase.com/docs/guides/platform/billing-on-supabase): **500 MB por projeto**, 2 projetos grátis, 5 GB de egress. [Pausa](https://supabase.com/docs/guides/platform/free-project-pausing): projeto com **pouca atividade em 7 dias é pausado** (e-mail de aviso ~1 semana antes). Restauração pelo painel: a página de pausa diz **1 ano**, a página de troubleshooting diz **90 dias**: assuma 90. | Postgres do Render **não serve**: o grátis expira em 30 dias (+14 de carência) e tem 1 GB. Outro Postgres gerenciado: não pesquisado.                                                                                                                                                                                                                                           |
+| Banco | **Supabase Free**                       | [Planos](https://supabase.com/docs/guides/platform/billing-on-supabase): **500 MB por projeto**, 2 projetos grátis, 5 GB de egress. [Pausa](https://supabase.com/docs/guides/platform/free-project-pausing): projeto com **pouca atividade em 7 dias é pausado** (e-mail de aviso ~1 semana antes). Restauração pelo painel: a página de pausa diz **1 ano**, a página de troubleshooting diz **90 dias**: assuma 90. | Postgres do Render **não serve**: o grátis expira em 30 dias (+14 de carência) e tem 1 GB.                                                                                                                                                                                                                                                                                      |
 | CD    | **GitHub Actions + deploy hooks**       | Ver a seção 7 (justificativa).                                                                                                                                                                                                                                                                                                                                                                                        | Integração nativa de cada plataforma.                                                                                                                                                                                                                                                                                                                                           |
 
 Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** que roda o mesmo Docker do projeto. O custo
@@ -33,29 +32,25 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
 
 ## 3. Passo 1: repositório, CI e proteção da `main`
 
-1. **AÇÃO MANUAL** Crie o repositório em <https://github.com/new> (vazio, sem README). Anote `DONO/REPO`.
+1. Crie o repositório em <https://github.com/new> (vazio, sem README). Anote `<dono>/<repo>`.
 2. No seu computador, na pasta do projeto:
    ```bash
-   git remote add origin git@github.com:DONO/REPO.git   # ou a URL https
+   git remote add origin git@github.com:<dono>/<repo>.git   # ou a URL https
    git push -u origin main
    ```
-   (**AÇÃO MANUAL**: o push usa as suas credenciais do Git.)
+   (o push usa as credenciais do Git de quem publica.)
 3. Abra a aba **Actions**: o workflow **CI** roda sozinho (lint, typecheck, testes, build, imagens Docker e
    `check:secrets`). Espere ficar verde. Se falhar, o log mostra o comando; rode o mesmo localmente.
-4. **Badge no README:** cole no topo do `README.md` (troque `DONO/REPO`):
-   ```md
-   [![CI](https://github.com/DONO/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/DONO/REPO/actions/workflows/ci.yml)
-   ```
-5. **AÇÃO MANUAL** Proteção da `main`: _Settings → Branches → Add branch ruleset_ (ou _branch protection rule_) para
+4. Proteção da `main`: _Settings → Branches → Add branch ruleset_ (ou _branch protection rule_) para
    `main`: marque **Require status checks to pass** e selecione os jobs do CI (_Lint and typecheck_, _Web tests (Vitest)_,
    _API tests (Jest + Postgres)_, _Build web and API_ e os três _Docker image_), e **Block force pushes**. Com
    _Require a pull request_ ligado, o merge só ocorre com CI verde; o deploy (seção 7) dispara no push resultante.
-6. **AÇÃO MANUAL** Crie o ambiente de segredos: _Settings → Environments → New environment_ → nome **`production`**.
+5. Crie o ambiente de segredos: _Settings → Environments → New environment_ → nome **`production`**.
    Opcional e recomendado: em _Required reviewers_ adicione a si mesmo para aprovar cada deploy.
 
 ## 4. Passo 2: Supabase (banco)
 
-1. **AÇÃO MANUAL** Crie a conta em <https://supabase.com> e um projeto (_New project_). Guarde a **senha do banco**
+1. Crie a conta em <https://supabase.com> e um projeto (_New project_). Guarde a **senha do banco**
    (ela só é mostrada na criação; dá para redefinir em _Project Settings → Database_). Escolha uma região **próxima da
    do Render** (a página do Render não lista as regiões do plano grátis: veja as opções ao criar o serviço e use a
    mesma região ou a mais próxima).
@@ -83,9 +78,9 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t.tablename);
      END LOOP; END $$;
    ```
-   Depois rode o smoke test (seção 8) para confirmar que a API continua lendo e gravando. Se algo quebrar, o RLS
-   pode ser desligado com `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` (não verifiquei no Supabase real se o papel
-   usado pela connection string ignora o RLS: o smoke test é o teste).
+   Depois rode o smoke test (seção 8) para confirmar que a API continua lendo e gravando: ele é o teste de que o papel
+   usado pela connection string não é bloqueado pelo RLS. Se algo quebrar, desligue com
+   `ALTER TABLE ... DISABLE ROW LEVEL SECURITY`.
 6. **Risco de pausa:** projeto sem atividade por 7 dias é pausado. O workflow diário **Reset demo account** (seção 11)
    escreve no banco todo dia e evita isso, mas **o GitHub desliga workflows agendados de repositório público após 60
    dias sem atividade** ([docs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows));
@@ -94,10 +89,10 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
 
 ## 5. Passo 3: API no Render
 
-1. **AÇÃO MANUAL** Crie a conta em <https://render.com> (login com GitHub) e autorize o acesso ao repositório.
+1. Crie a conta em <https://render.com> (login com GitHub) e autorize o acesso ao repositório.
 2. _New → Blueprint_ → escolha o repositório. O Render lê o `render.yaml` da raiz (serviço `routinely-api`, plano
    `free`, runtime Docker, `healthCheckPath: /health`, `autoDeploy: false`).
-3. **AÇÃO MANUAL** Ele pede os valores marcados com `sync: false`. **Cole-os você mesmo; nunca os coloque no Git:**
+3. Ele pede os valores marcados com `sync: false`. **Cole-os você mesmo; nunca os coloque no Git:**
 
    | Variável                      | Valor                                                                                   |
    | ----------------------------- | --------------------------------------------------------------------------------------- |
@@ -115,20 +110,23 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
    `https://<seu-servico>.onrender.com/health`: deve responder `{"status":"ok","database":"up",...}`.
 5. **Logs:** painel do serviço → _Logs_ (JSON do pino, sem conteúdo do usuário e sem a chave). Ali aparece também a linha
    `AI models: default=... retry=...` do boot e qualquer aviso de modelo substituído.
-6. **Deploy hook:** _Settings → Deploy Hook_ → copie a URL. **AÇÃO MANUAL** Ela é um segredo (quem a tem faz deploy):
+6. **Deploy hook:** _Settings → Deploy Hook_ → copie a URL. Ela é um segredo (quem a tem faz deploy):
    guarde para a seção 7.
 
 **`TRUST_PROXY=2`:** o limite de login/cadastro é por IP. Atrás do Render o cabeçalho `X-Forwarded-For` chega como
 `<cliente>, <IP do Vercel>`; com `2`, a API ignora os dois saltos confiáveis da direita e enxerga o IP do cliente.
-**Não verifiquei isso em produção.** Teste depois do deploy: de duas redes diferentes, erre a senha 11 vezes numa
+Valide depois do deploy: de duas redes diferentes, erre a senha 11 vezes numa
 (deve bloquear) e confirme que a outra continua entrando. Se todos parecerem o mesmo IP, ajuste o número.
 
 ## 6. Passo 4: front na Vercel
 
-1. **AÇÃO MANUAL** Crie a conta em <https://vercel.com> (login com GitHub) → _Add New → Project_ → importe o repositório.
+1. Crie a conta em <https://vercel.com> (login com GitHub) → _Add New → Project_ → importe o repositório.
 2. Em _Configure Project_: **Root Directory = `apps/web`** (framework: Next.js). Os comandos de instalação e build
    já estão no `apps/web/vercel.json` (instalam pela raiz do monorepo e compilam o pacote `shared` antes). O mesmo
-   arquivo desliga o deploy automático da `main` (`git.deploymentEnabled`): quem publica é o CD, depois do CI.
+   arquivo desliga o deploy automático da `main` (`git.deploymentEnabled`): quem publica é o CD, depois do CI. **Atenção:** a
+   documentação da Vercel não diz se o deploy hook continua funcionando com essa chave. Confirme no primeiro deploy pelo CD
+   que a Vercel mostra um deploy acionado por _Deploy Hook_; se não mostrar, remova o bloco `git` do `vercel.json` (a Vercel
+   passa a publicar a cada push na `main`, e o hook fica redundante).
 3. **Environment Variables** (_Production_):
 
    | Variável                       | Valor                                                                         |
@@ -138,7 +136,7 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
    | `NEXT_PUBLIC_DEFAULT_TIMEZONE` | `America/Manaus` (ou o seu fuso)                                              |
 
 4. **Deploy** uma vez (botão do assistente). Em _Settings → Git → Deploy Hooks_ crie um hook chamado `ci`, branch
-   `main`, e copie a URL. **AÇÃO MANUAL** Também um segredo. Volte ao Render e ajuste `CORS_ORIGINS` para a URL final.
+   `main`, e copie a URL. Também um segredo. Volte ao Render e ajuste `CORS_ORIGINS` para a URL final.
 5. **Domínio:** o `*.vercel.app` já funciona. Domínio próprio é opcional (_Settings → Domains_; até 50 por projeto no Hobby).
 6. **Verifique os cookies** (a parte que só se prova em produção): abra o site numa janela anônima, entre com a conta
    demo e, em _DevTools → Application → Cookies_, confira `routinely_at` e `routinely_rt` **no domínio do front**, com
@@ -161,7 +159,7 @@ Segurança do workflow: ações **fixadas por SHA**, `permissions: contents: rea
 ambiente `production`, `concurrency` sem cancelar (uma migration não é interrompida), checagem de que o CI era de um
 _push_ na `main` (não de PR de fork) e nenhum `${{ }}` dentro de scripts (segredos passam por variáveis de ambiente).
 
-**AÇÃO MANUAL** Em _Settings → Environments → production_ cadastre:
+Em _Settings → Environments → production_ cadastre:
 
 | Tipo              | Nome                                        | Valor                                                     |
 | ----------------- | ------------------------------------------- | --------------------------------------------------------- |
@@ -191,7 +189,7 @@ gera a rotina e espera ficar pronta**, e apaga o que criou. Como o cadastro é f
 
 1. **Front:** Vercel → _Deployments_ → o deploy anterior → _Promote to Production_ (troca imediata, sem rebuild).
 2. **API:** Render → _Events/Deploys_ → o deploy anterior → _Rollback_ (se não aparecer no plano grátis, _Manual Deploy →
-   Deploy a specific commit_ com o SHA anterior). Não confirmei se o botão existe no plano grátis.
+   Deploy a specific commit_ com o SHA anterior).
 3. **Banco:** as migrations são aditivas, então a versão anterior do código continua funcionando com o schema novo.
    Não há migration "down". Antes de uma migration arriscada faça um `pg_dump` (o Supabase Free não promete backup
    restaurável por você). Pare o CD enquanto investiga: _Actions → Deploy → ⋯ → Disable workflow_.
@@ -222,7 +220,7 @@ O app **nunca fica sem rotina** (regra do projeto: a IA propõe, o validador dec
   todo mundo cai no heurístico com o aviso "Limite diário de IA atingido".
 - A estimativa de tarefa também cai numa estimativa sem IA (sinalizada na tarefa).
 
-Cotas diárias de requisições **desta chave** (informadas por mim em 11/11/2026; confira no AI Studio): `gemini-3.5-flash`
+Cotas diárias de requisições da chave usada no projeto (em 11/11/2026; confira no AI Studio, elas mudam por chave e por plano): `gemini-3.5-flash`
 e `-flash-lite` **500/dia**; `gemini-3.6-flash` e `gemini-3.8-flash` **só 20/dia**. Por isso o `render.yaml` usa
 `gemini-3.5-flash-lite` também como modelo de _retry_, e `AI_GLOBAL_DAILY_LIMIT=100` mantém uma folga grande (cada
 geração usa 1 a 2 chamadas e cada estimativa, 1). Ajuste os dois limites à cota real da sua chave.
@@ -243,7 +241,7 @@ só você usa a IA de verdade.**
 | `AI_DAILY_LIMIT`                         | `20`             | usos de IA por usuário e por dia                             |
 | `AI_GLOBAL_DAILY_LIMIT`                  | `100`            | usos de IA somando todos, por dia                            |
 
-**Criar a conta demo (uma vez) e restaurá-la.** Com as variáveis de produção no seu shell (**AÇÃO MANUAL**: use o
+**Criar a conta demo (uma vez) e restaurá-la.** Com as variáveis de produção no seu shell (use o
 `DATABASE_URL` real, que é um segredo):
 
 ```bash
@@ -257,7 +255,7 @@ já gerada). Ele é o mesmo do workflow **Reset demo account**, que roda **todo 
 _Actions → Reset demo account → Run workflow_). Os visitantes dividem **uma só conta**: veem as alterações uns dos outros
 até o próximo reset, e as sessões abertas não são derrubadas.
 
-**Criar a sua conta real** (o cadastro está fechado). **AÇÃO MANUAL**, com o banco de produção:
+**Criar a sua conta real** (o cadastro está fechado), com o banco de produção:
 
 ```bash
 DATABASE_URL='<session pooler>' DIRECT_URL='<session pooler>' \

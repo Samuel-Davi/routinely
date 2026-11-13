@@ -73,7 +73,7 @@ discretos.
 - **6 blocos do calendário (visão semanal no desktop) têm altura < 44 px.** O tamanho do bloco é proporcional
   à duração (um bloco de 30 min tem ~28 px); aumentá-lo distorceria a grade. A largura é de > 100 px, e o
   mesmo bloco abre pelo teclado (Enter) e tem painel de detalhes. No celular (visão diária) a medição deu 0.
-- O "antes" foi medido com os dados reais do autor e o "depois" com a conta demo; a contagem de blocos
+- O "antes" foi medido com dados reais de uso e o "depois" com a conta demo; a contagem de blocos
   depende dos dados, mas as regras medidas (alvo, texto, movimento) não.
 - Não testado em aparelho físico (só emulação de viewport e `prefers-*` no Chromium).
 - Um 401 inofensivo em `/auth/me` aparece no console logo após "Sair" (o menu consulta o usuário uma última
