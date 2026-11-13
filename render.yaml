@@ -6,7 +6,7 @@ services:
     name: routinely-api
     runtime: docker
     plan: free
-    # Fixed so the Supabase region can be chosen to match (docs/DEPLOY-CHECKLIST.md, step 8).
+    # Fixed so the Supabase region can be chosen to match (docs/DEPLOY.md, Supabase section).
     region: oregon
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .

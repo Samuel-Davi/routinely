@@ -1,133 +1,125 @@
 # Routinely
 
 [![CI](https://github.com/Samuel-Davi/app-rotina-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/Samuel-Davi/app-rotina-AI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Gera, com IA, uma **rotina semanal** a partir dos seus compromissos fixos e das suas tarefas com prioridade e prazo.
+**English** · [Português](README.pt-BR.md)
 
-- Compromissos fixos semanais e tarefas (CRUD), com **estimativa de esforço por IA** (complexidade, duração, divisível) e ajuste manual.
-- **Gerar rotina**: as tarefas são distribuídas nos horários livres, respeitando janela diária, almoço, bloco máximo de foco, intervalo entre blocos e prazos. Se uma tarefa não cabe inteira (ex.: precisa de 8h e só há 6h), ela é **alocada com o que couber** e a rotina avisa para fazê-la em horário mais curto; nada é deixado de fora quando existe tempo.
-- Calendário semanal (visão diária com swipe no celular), **drag & drop** para mover/redimensionar com validação de conflito em tempo real.
-- **Replanejar** só o futuro, preservando blocos travados e concluídos; sugestão automática quando a rotina fica desatualizada.
-- Concluir blocos/tarefas e **histórico de versões** com diff resumido e restauração.
+Routinely builds a **weekly routine with AI** from your fixed commitments and your tasks (priority and deadline). The AI proposes a plan; a deterministic validator decides what is saved; a heuristic planner guarantees there is always a routine, even when the AI is unavailable.
 
-## Demo ao vivo
+<p align="center">
+  <img src="docs/screenshots/after/semana-desktop-light.png" alt="Weekly calendar with scheduled task blocks" width="820">
+</p>
 
-- **AÇÃO MANUAL (link):** depois do deploy, coloque aqui a URL do site: `https://SEU-SITE.vercel.app` (passo a passo em
-  [`docs/DEPLOY.md`](docs/DEPLOY.md)).
-- **A IA está desligada para visitantes.** O botão **"Entrar como demo"** abre uma conta compartilhada com dados fictícios
-  e o planejador determinístico ("Modo demo, sem IA"). O cadastro é fechado; só o dono usa a IA de verdade.
-- **AÇÃO MANUAL (GIF/vídeo):** grave uma gravação curta (10–20 s) da **geração com IA** na sua conta e salve em
-  `docs/media/geracao-com-ia.gif`; depois inclua `![Geração com IA](docs/media/geracao-com-ia.gif)` aqui. Eu não consigo
-  gravar a sua tela nem usar a sua conta.
+## Highlights
 
-> **A IA propõe; o backend valida.** Nenhuma alocação é salva sem passar por um validador determinístico. Se a IA falhar (resposta inválida, limite de uso, sem chave), um planejador heurístico garante que sempre exista uma rotina — e a interface avisa: _"Rotina gerada sem IA"_.
+- **Fixed commitments and tasks** with **AI effort estimation** (complexity, duration, splittable or not) and manual override.
+- **Generate routine**: tasks are placed in free slots respecting the daily window, lunch break, maximum focus block, minimum gap between blocks, travel time and deadlines. When a task does not fit entirely (for example it needs 8 h and only 6 h are free), it is **scheduled with the time that fits and flagged**, never silently dropped. Tasks of the same priority share scarce time fairly.
+- **Weekly calendar** (daily view with swipe on mobile) with **drag and drop** to move and resize blocks, validated against conflicts in real time.
+- **Replan** only the future, preserving locked and completed blocks.
+- **Version history** with a change summary and restore.
+- **Accounts**: email and password, per-user data isolation, daily AI quotas, and an optional **portfolio mode** (closed signup plus a shared demo account that never calls the AI).
 
-## Começando
+> **The AI proposes; the backend validates.** No allocation is stored without passing a deterministic validator. If the AI fails (invalid response, rate limit, no key), a heuristic planner still produces a routine, and the UI says so ("Routine generated without AI").
 
-Pré-requisitos: Docker + Docker Compose.
+<table>
+  <tr>
+    <td><img src="docs/screenshots/after/tarefas-desktop-light.png" alt="Task list" width="480"></td>
+    <td><img src="docs/screenshots/after/semana-mobile-dark.png" alt="Daily view on mobile, dark theme" width="180"></td>
+  </tr>
+</table>
+
+## Tech stack
+
+| Layer    | Technologies                                                                                      |
+| -------- | ------------------------------------------------------------------------------------------------- |
+| Web      | Next.js 16 (App Router), React 19, Tailwind CSS 4, TanStack Query, Redux Toolkit, dnd-kit, motion |
+| API      | NestJS 11, Prisma 6, PostgreSQL 16, pino, Swagger                                                 |
+| AI       | Google Gemini (`@google/genai`) behind a provider interface, structured output validated with zod |
+| Shared   | zod 4 schemas used by the API, the forms and the AI output; time utilities with time zones        |
+| Quality  | TypeScript strict, ESLint, Prettier, Vitest, Jest, supertest, MSW, Testing Library                |
+| Delivery | Docker (multi-stage), Docker Compose, GitHub Actions (CI and CD), Vercel, Render, Supabase        |
+
+## Quick start
+
+Requirements: Docker and Docker Compose.
 
 ```bash
 cp .env.example .env
-# edite .env e preencha GEMINI_API_KEY (opcional: sem chave o app funciona sem IA)
+# set JWT_SECRET (required) and, optionally, GEMINI_API_KEY (without it the app runs without AI)
+echo "JWT_SECRET=$(openssl rand -base64 48)" >> .env
 docker compose up --build
 ```
 
-| Serviço | URL                        |
+| Service | URL                        |
 | ------- | -------------------------- |
 | Web     | http://localhost:3000      |
 | API     | http://localhost:3001      |
 | Swagger | http://localhost:3001/docs |
 
-Na subida, o serviço `migrate` (um job que roda e sai) aplica as migrations e carrega o seed (usuário único, preferências e exemplos de compromissos e tarefas); a API só inicia depois que ele termina com sucesso.
+A one-shot `migrate` service applies the migrations and the seed before the API starts. Create your account on the sign-up screen. A free Gemini key (no billing) is available at https://aistudio.google.com/apikey.
 
-A chave do Gemini é gratuita (sem billing): https://aistudio.google.com/apikey.
+### Local development (without Docker for the apps)
 
-### Primeiro acesso (login)
-
-A API exige login. Defina um segredo para os tokens no `.env` e, se você já tinha dados de antes do login, reivindique-os:
-
-```bash
-# 1. segredo dos tokens (obrigatório com docker compose / produção)
-echo "JWT_SECRET=$(openssl rand -base64 48)" >> .env
-
-# 2. (só se já havia dados) define e-mail e senha do dono dos dados atuais; a senha é pedida
-#    no terminal, sem eco
-docker compose run --rm -it migrate node scripts/claim-owner.mjs --email voce@exemplo.com
-#    sem Docker: pnpm --filter @routinely/api claim-owner -- --email voce@exemplo.com
-```
-
-Quem começa do zero apenas cria a conta na tela de cadastro (sem verificação de e-mail e sem OAuth no MVP).
-
-### Desenvolvimento local (sem Docker para os apps)
-
-Pré-requisitos: Node 24 e pnpm 12.
+Requirements: Node 24 and pnpm 12.
 
 ```bash
 pnpm install
 cp .env.example .env
-pnpm db:up                                   # só o Postgres, via Docker
+pnpm db:up                                   # PostgreSQL only, via Docker
 pnpm --filter @routinely/api prisma:deploy   # migrations
-pnpm --filter @routinely/api prisma:seed     # dados de exemplo
-pnpm dev                                     # web (3000) + api (3001) com hot reload
+pnpm --filter @routinely/api prisma:seed     # sample data
+pnpm dev                                     # web (3000) + api (3001) with hot reload
 ```
 
-Ou, com hot reload dentro do Docker:
+If you already had data from before login existed, claim it with `pnpm --filter @routinely/api claim-owner -- --email you@example.com` (the password is prompted without echo).
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-```
+### Scripts
 
-## Scripts
+| Script               | What it does                                                       |
+| -------------------- | ------------------------------------------------------------------ |
+| `pnpm dev`           | Runs web and API in development mode                               |
+| `pnpm build`         | Builds `shared`, the API and the web app                           |
+| `pnpm lint`          | ESLint and Prettier check                                          |
+| `pnpm typecheck`     | `tsc --noEmit` in every package                                    |
+| `pnpm test`          | Vitest (`shared`, `web`) and Jest unit tests (`api`)               |
+| `pnpm test:e2e`      | API end-to-end tests with supertest (needs Postgres: `pnpm db:up`) |
+| `pnpm eval:ai`       | Compares planning strategies with a real key (not part of CI)      |
+| `pnpm demo:reset`    | Creates or restores the shared demo account                        |
+| `pnpm check:secrets` | Scans the web bundle, the API build and tracked files for secrets  |
 
-Na raiz do monorepo:
-
-| Script           | O que faz                                                         |
-| ---------------- | ----------------------------------------------------------------- |
-| `pnpm dev`       | Sobe web e API em modo desenvolvimento                            |
-| `pnpm build`     | Compila `shared`, API e web                                       |
-| `pnpm lint`      | ESLint (API/shared + web) e verificação do Prettier               |
-| `pnpm typecheck` | `tsc --noEmit` em todos os pacotes                                |
-| `pnpm test`      | Vitest (`shared`, `web`) e Jest unitário (`api`)                  |
-| `pnpm test:e2e`  | Jest e2e da API com supertest (precisa do Postgres: `pnpm db:up`) |
-| `pnpm format`    | Formata tudo com Prettier                                         |
-| `pnpm db:up`     | Sobe apenas o Postgres do compose                                 |
-
-Na API (`pnpm --filter @routinely/api <script>`): `prisma:migrate`, `prisma:deploy`, `prisma:seed`, `test:cov`.
-
-## Arquitetura
-
-Monorepo com pnpm workspaces:
+## Architecture
 
 ```
 apps/web         Next.js (App Router) + Tailwind + TanStack Query + Redux Toolkit + dnd-kit
-apps/api         NestJS + Prisma (PostgreSQL) + camada de IA isolada
-packages/shared  schemas zod, tipos, enums e regras de horário compartilhadas
-docs/            decisões (ADRs) e guia do Supabase
+apps/api         NestJS + Prisma (PostgreSQL) + isolated AI layer
+packages/shared  zod schemas, types, enums and scheduling rules shared by all
+docs/            architecture decision records, deploy guide, design notes
 ```
 
 ```mermaid
 flowchart LR
   subgraph Browser
-    UI[Next.js\nfeatures: calendar, routine,\ntasks, commitments, preferences]
-    RQ[(TanStack Query\nserver state)]
-    RX[(Redux Toolkit\nUI state)]
+    UI[Next.js<br/>calendar, routine, tasks,<br/>commitments, preferences]
+    RQ[(TanStack Query<br/>server state)]
+    RX[(Redux Toolkit<br/>UI state)]
     UI --- RQ
     UI --- RX
   end
 
   subgraph API[NestJS API]
-    C[Controllers\nZodValidationPipe]
+    C[Controllers<br/>zod validation]
     S[Services]
-    R[Repositories\nPrisma]
-    subgraph Engine[Motor de rotina · puro]
-      FW[Janelas livres]
-      V[Validador]
-      H[Heurístico first-fit]
+    R[Repositories<br/>Prisma]
+    subgraph Engine[Routine engine · pure]
+      FW[Free windows]
+      V[Validator]
+      H[Heuristic planner]
     end
-    subgraph AI[Camada de IA]
-      LC[LlmClient\nbackoff 429 · retry de validação]
+    subgraph AI[AI layer]
+      LC[LlmClient<br/>backoff · validation retry]
       P{{LlmProvider}}
-      PR[Prompts versionados pt-BR]
+      PR[Versioned prompts]
     end
     C --> S --> R
     S --> Engine
@@ -135,20 +127,19 @@ flowchart LR
     LC --> P
   end
 
-  SH[[packages/shared\nschemas zod · checkPlacement]]
+  SH[[packages/shared<br/>zod schemas · checkPlacement]]
   DB[(PostgreSQL)]
   G[Gemini API]
 
-  RQ -- HTTP/JSON --> C
+  RQ -- "HTTP/JSON (same-origin proxy)" --> C
   R --> DB
-  P -. gemini .-> G
-  P -. anthropic / ollama\nstubs .-> X((…))
+  P -.-> G
   SH -.-> UI
   SH -.-> C
   SH -.-> Engine
 ```
 
-### Como uma rotina é gerada
+### How a routine is generated
 
 ```mermaid
 sequenceDiagram
@@ -156,86 +147,86 @@ sequenceDiagram
   participant A as API
   participant L as LLM
   W->>A: POST /routines/generate
-  A-->>W: 202 (rotina PENDING)
-  Note over A: janelas livres (determinístico)<br/>tarefas impossíveis ficam de fora
-  A->>L: proposta (modelo padrão)
-  L-->>A: alocações
-  A->>A: validador
-  alt proposta com problemas
-    A->>L: retry (modelo de retry + lista de erros)
-    L-->>A: alocações
-    A->>A: validador
+  A-->>W: 202 (routine PENDING)
+  Note over A: free windows (deterministic)<br/>tasks that fit only partially go straight to the heuristic
+  A->>L: plan proposal
+  L-->>A: task order and block split
+  A->>A: backend picks exact times, validator checks
+  alt proposal has problems
+    A->>L: retry with the list of errors
+    L-->>A: new proposal
+    A->>A: validator
   end
-  A->>A: heurístico completa o que faltou
+  A->>A: heuristic completes whatever is missing
   loop polling
     W->>A: GET /routines/:id
   end
   A-->>W: READY · source AI | AI_REPAIRED | HEURISTIC
 ```
 
-O validador rejeita qualquer bloco que sobreponha compromisso fixo, almoço ou outro bloco, saia da janela diária, passe do prazo, exceda o bloco máximo, desrespeite o intervalo mínimo, divida uma tarefa indivisível ou aloque um total diferente do estimado. Ele e o heurístico são funções puras com 100% de cobertura, incluindo um teste de propriedade com respostas aleatórias da "IA".
+The validator rejects any block that overlaps a fixed commitment, lunch or another block, leaves the daily window, passes the deadline, exceeds the maximum block, breaks the minimum gap, splits a non-splittable task or allocates a total different from the estimate. The validator and the heuristic are pure functions with 100% coverage, including a property-based test that feeds random "AI" answers and checks every rule on the result.
 
-### Estado no front
+### Design decisions worth knowing
 
-- **TanStack Query** guarda todo o _server state_: listas, rotina ativa, polling dos jobs de IA e _optimistic updates_ com rollback (drag & drop, concluir, excluir).
-- **Redux Toolkit** guarda apenas _UI state_: semana/dia selecionado, modo de visão, filtros, estado do arrasto, painéis abertos e rascunhos de formulário.
+- **Server state vs UI state.** TanStack Query holds everything that comes from the API (including polling of AI jobs and optimistic updates with rollback); Redux Toolkit holds only UI state (selected week, view mode, filters, drag state, panels, drafts).
+- **One source of truth for contracts.** zod schemas in `packages/shared` define DTOs, form validation and the AI output.
+- **Provider isolation.** `LlmProvider` is the only contact point with an LLM vendor. `LlmClient` adds exponential backoff with jitter for rate limits and overloaded responses, plus one validation retry on a stronger model. Anthropic and Ollama providers are documented stubs.
+- **First-party cookies.** The browser only talks to the web origin; a runtime proxy forwards `/api/*` to the API, so session cookies are `httpOnly; Secure; SameSite=Lax` without CORS tricks.
+- **Planning strategy chosen by measurement.** See ADR-021 for the evaluation and its limits.
 
-### Camada de IA
+Every decision is recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md) (in Portuguese).
 
-- Interface `LlmProvider { generateStructured<T>(input): Promise<T> }` em `apps/api/src/ai`.
-- `GeminiProvider` (`@google/genai`): saída estruturada com `responseMimeType: application/json` + `responseJsonSchema` gerado dos schemas zod, seguida de `zod.parse`.
-- `LlmClient`: backoff exponencial com jitter para 429 (até `LLM_MAX_ATTEMPTS`) e **um** retry no modelo de retry quando a validação falha.
-- Dois casos de uso: `estimateTask` (com cache por hash de título+descrição+prioridade) e `generateRoutine`.
-- Prompts versionados em `apps/api/src/ai/prompts/*.md`. A chave de API nunca é logada.
+## Configuration
 
-## Configuração
+All variables are documented in [`.env.example`](.env.example). The main ones:
 
-Todas as variáveis estão documentadas em [`.env.example`](.env.example). As principais:
+| Variable                | Default                 | Description                                                               |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `JWT_SECRET`            | —                       | Token signing secret, at least 32 characters (required in production)     |
+| `LLM_PROVIDER`          | `gemini`                | `gemini`, `anthropic` or `ollama`                                         |
+| `GEMINI_API_KEY`        | —                       | Google AI Studio key (optional: without it the heuristic planner is used) |
+| `GEMINI_MODEL`          | `gemini-3.5-flash-lite` | Default model                                                             |
+| `GEMINI_RETRY_MODEL`    | `gemini-3.6-flash`      | Model used for the validation retry                                       |
+| `AI_PLANNING_STRATEGY`  | `order-day`             | `times`, `order` or `order-day`                                           |
+| `AI_DAILY_LIMIT`        | `40`                    | AI uses per user per UTC day                                              |
+| `AI_GLOBAL_DAILY_LIMIT` | `200`                   | AI uses across all users per UTC day                                      |
+| `REGISTRATION_ENABLED`  | `true` (dev)            | Set to `false` to close sign-up (portfolio mode)                          |
+| `DEMO_ENABLED`          | `false`                 | Enables the shared demo account (never calls the AI)                      |
+| `DATABASE_URL`          | local Postgres          | Runtime connection (pooled in production)                                 |
+| `DIRECT_URL`            | local Postgres          | Direct connection used by migrations                                      |
+| `API_INTERNAL_URL`      | `http://localhost:3001` | Where the web server forwards `/api/*` (read at runtime)                  |
+| `NEXT_PUBLIC_API_URL`   | _(empty)_               | **Leave empty**: the browser calls its own origin (`/api/*`)              |
 
-| Variável              | Padrão                  | Descrição                                                                         |
-| --------------------- | ----------------------- | --------------------------------------------------------------------------------- |
-| `LLM_PROVIDER`        | `gemini`                | `gemini`, `anthropic` ou `ollama`                                                 |
-| `GEMINI_API_KEY`      | —                       | Chave do Google AI Studio                                                         |
-| `GEMINI_MODEL`        | `gemini-3.5-flash-lite` | Modelo padrão                                                                     |
-| `GEMINI_RETRY_MODEL`  | `gemini-3.6-flash`      | Modelo usado no retry de validação                                                |
-| `DATABASE_URL`        | Postgres local          | Conexão usada em runtime (pooled em produção)                                     |
-| `DIRECT_URL`          | Postgres local          | Conexão direta usada pelas migrations                                             |
-| `NEXT_PUBLIC_API_URL` | _(vazio)_               | **Deixe vazio** (o compose ignora): o navegador chama `/api/*` na origem do front |
-| `API_INTERNAL_URL`    | `http://localhost:3001` | Para onde o servidor web encaminha `/api/*` (lido em runtime)                     |
-| `DEFAULT_TIMEZONE`    | `America/Manaus`        | Fuso padrão (cada usuário pode trocar em Ajustes)                                 |
-| `CORS_ORIGINS`        | `http://localhost:3000` | Origens permitidas, separadas por vírgula                                         |
-| `LLM_TIMEOUT_MS`      | `30000`                 | Timeout por chamada de IA                                                         |
-| `AI_RATE_LIMIT_MAX`   | `20`                    | Requisições por `AI_RATE_LIMIT_TTL_MS` nos endpoints que usam IA                  |
+### Using another LLM
 
-### Trocar para o Supabase
+`AnthropicProvider` and `OllamaProvider` are stubs: they implement the interface but report "unavailable", and the app falls back to the heuristic planner. To enable one, implement `generateStructured` following the roadmap in the file header, make `isConfigured()` return `true` and set `LLM_PROVIDER`. Retry, backoff, validation and fallback live outside the providers and stay unchanged.
 
-O `schema.prisma` já usa `url = env("DATABASE_URL")` (pooled) e `directUrl = env("DIRECT_URL")`. Basta apontar as duas variáveis para o seu projeto e aplicar as migrations. Passo a passo em [`docs/SUPABASE.md`](docs/SUPABASE.md).
+## Testing and quality
 
-### Trocar para um LLM local (Ollama) ou Anthropic
-
-A seleção é feita por `LLM_PROVIDER`. `AnthropicProvider` e `OllamaProvider` são **stubs documentados**: implementam a interface, mas respondem "indisponível", e o app cai no heurístico. Para ativar um deles:
-
-1. Implemente `generateStructured` em `apps/api/src/ai/providers/ollama.provider.ts` (ou `anthropic.provider.ts`) seguindo o roteiro no comentário do arquivo — para o Ollama é um `POST {OLLAMA_BASE_URL}/api/chat` com `format` = JSON Schema e `parseStructured` na resposta.
-2. Faça `isConfigured()` retornar `true`.
-3. Defina `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL` e `OLLAMA_MODEL` no `.env` (no Docker, adicione um serviço `ollama` ao compose e use `http://ollama:11434`).
-
-Nada mais muda: retry, backoff, validação e fallback ficam no `LlmClient` e no motor de rotina.
-
-## Testes
-
-- **API (Jest)**: services, camada de IA com `LlmProvider` mockado, motor de rotina (cobertura mínima exigida no `jest.config.ts`) e e2e dos endpoints com um banco de teste (`routinely_test`).
-- **Web (Vitest + Testing Library + MSW)**: calendário, card e formulário de tarefa, fluxo de geração/replanejamento, redimensionamento com rollback, slices/selectors Redux e hooks do TanStack Query.
-- Nenhum teste chama um LLM real.
-
-## CI
-
-`.github/workflows/ci.yml` roda em push/PR, com jobs em paralelo: lint + typecheck, testes web, testes API (com serviço Postgres), build e build das imagens Docker (sem push). Runs antigos do mesmo branch são cancelados e o token tem permissão somente de leitura.
+- **API (Jest):** services, the AI layer with a fake provider, the routine engine (coverage threshold enforced in `jest.config.ts`) and end-to-end tests against a dedicated database.
+- **Web (Vitest, Testing Library, MSW):** calendar, task form, generation and replan flow, resize with rollback, Redux slices and TanStack Query hooks.
+- **No test or CI job calls a real LLM.**
+- **CI** (`.github/workflows/ci.yml`) runs lint and typecheck, web tests, API tests with a Postgres service, the build, Docker image builds and a secret scan, in parallel, with read-only token permissions and actions pinned by commit SHA.
+- **CD** (`.github/workflows/deploy.yml`) deploys only after CI succeeds on `main`: migrations first, then the API and the web app, then a smoke test through the same path a browser uses.
 
 ## Deploy
 
-Guia completo e executável (Vercel + Render + Supabase, CD pelo GitHub Actions e modo portfólio): [`docs/DEPLOY.md`](docs/DEPLOY.md). Comandos úteis: `pnpm demo:reset`, `pnpm check:secrets`, `node scripts/smoke-test.mjs`.
+The published setup uses Vercel (web), Render (API) and Supabase (PostgreSQL), all on free tiers. See [`docs/DEPLOY.md`](docs/DEPLOY.md) (in Portuguese) for the architecture, the environment variables, rollback and free-tier limits.
 
-## Documentação
+## Known limitations
 
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — decisões de arquitetura (ADRs), pendências e riscos conhecidos.
-- [`docs/SUPABASE.md`](docs/SUPABASE.md) — como usar o Supabase como banco.
+- Background AI jobs run in the API process (state in the database, polling on the client). Several API instances would need a persistent queue.
+- Authentication is intentionally basic: no email verification, password recovery or OAuth. Rate limiting is per instance.
+- Drag and drop on touch screens was tested with emulation, not on physical devices.
+- Anthropic and Ollama providers are stubs.
+
+## Documentation
+
+- [`docs/DECISIONS.md`](docs/DECISIONS.md): architecture decision records
+- [`docs/DEPLOY.md`](docs/DEPLOY.md): CI, CD and portfolio mode
+- [`docs/SUPABASE.md`](docs/SUPABASE.md): using Supabase as the database
+- [`docs/DESIGN-NOTES.md`](docs/DESIGN-NOTES.md): interface redesign and accessibility measurements
+
+## License
+
+[MIT](LICENSE)

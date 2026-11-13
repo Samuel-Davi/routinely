@@ -19,7 +19,7 @@ apps/api          NestJS: controller → service → repository (Prisma)
   src/ai          LlmProvider, GeminiProvider, LlmClient (backoff/retry), prompts/*.md
   src/routines    engine/ (puro) + service (jobs, replanejar, histórico)
 apps/web          Next.js App Router; features/{calendar,routine,tasks,commitments,preferences}
-docs/             DECISIONS.md (ADRs), SUPABASE.md, O-QUE-FOI-FEITO.md
+docs/             DECISIONS.md (ADRs), DEPLOY.md, SUPABASE.md, DESIGN-NOTES.md
 ```
 
 ## Comandos

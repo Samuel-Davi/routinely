@@ -16,3 +16,7 @@ next-env.d.ts
 .playwright-mcp/
 backups/
 apps/api/eval/results/
+
+# Notas pessoais de deploy e relatório de sessões (só locais)
+docs/DEPLOY-CHECKLIST.md
+docs/O-QUE-FOI-FEITO.md
