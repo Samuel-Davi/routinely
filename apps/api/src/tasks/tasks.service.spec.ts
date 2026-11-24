@@ -46,6 +46,9 @@ function setup(existing: TaskRow | null = taskRow()) {
       .fn()
       .mockImplementation(async (_id, data) => ({ ...taskRow(), ...existing, ...data })),
     delete: jest.fn().mockResolvedValue(undefined),
+    blockMinutes: jest
+      .fn()
+      .mockResolvedValue(new Map([['task-1', { completed: 30, scheduled: 90 }]])),
   };
   const queue: jest.Mocked<EstimationQueue> = { enqueue: jest.fn() };
   const service = new TasksService(
@@ -110,6 +113,17 @@ describe('TasksService', () => {
     const tasks = await service.list({ status: 'TODO' });
     expect(repository.findAll).toHaveBeenCalledWith(USER_ID, { status: 'TODO' });
     expect(tasks[0]).toMatchObject({ id: 'task-1', deadline: '2026-11-13T22:00:00.000Z' });
+  });
+
+  it('reports block minutes of the active routine, zero when the task has none', async () => {
+    const { service, repository } = setup();
+    expect(await service.get('task-1')).toMatchObject({
+      completedMinutes: 30,
+      scheduledMinutes: 90,
+    });
+    repository.blockMinutes.mockResolvedValue(new Map());
+    expect(await service.get('task-1')).toMatchObject({ completedMinutes: 0, scheduledMinutes: 0 });
+    expect((await service.list())[0]).toMatchObject({ completedMinutes: 0 });
   });
 
   it('creates a task as PENDING and enqueues the AI estimate', async () => {

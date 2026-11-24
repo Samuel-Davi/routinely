@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma, Task as TaskRow, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import type { TaskBlockMinutes } from './task.mapper';
 
 export type TaskCreateData = Pick<TaskRow, 'title' | 'description' | 'priority' | 'deadline'> &
   Partial<Pick<TaskRow, 'commitmentId'>>;
@@ -22,6 +23,27 @@ export class TasksRepository {
       },
       orderBy: [{ deadline: 'asc' }, { createdAt: 'asc' }],
     });
+  }
+
+  /**
+   * Done and total block minutes per task in the user's active routine. Completed blocks
+   * are carried over on replan, so the active routine holds the whole history.
+   */
+  async blockMinutes(userId: string, taskIds: string[]): Promise<Map<string, TaskBlockMinutes>> {
+    const minutes = new Map<string, TaskBlockMinutes>();
+    if (taskIds.length === 0) return minutes;
+    const blocks = await this.prisma.routineBlock.findMany({
+      where: { userId, taskId: { in: taskIds }, routine: { active: true, status: 'READY' } },
+      select: { taskId: true, start: true, end: true, completedAt: true },
+    });
+    for (const block of blocks) {
+      const length = Math.round((block.end.valueOf() - block.start.valueOf()) / 60_000);
+      const current = minutes.get(block.taskId) ?? { completed: 0, scheduled: 0 };
+      current.scheduled += length;
+      if (block.completedAt) current.completed += length;
+      minutes.set(block.taskId, current);
+    }
+    return minutes;
   }
 
   /** Whether the commitment exists and belongs to the user. */

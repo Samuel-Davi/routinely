@@ -40,6 +40,52 @@ describe('CommitmentsScreen', () => {
     expect(screen.getByText('Saúde')).toBeInTheDocument();
   });
 
+  it('labels a one-off commitment with its date', async () => {
+    server.use(
+      http.get(`${API}/fixed-commitments`, () =>
+        HttpResponse.json([
+          makeCommitment({ title: 'Dentista', daysOfWeek: [6], date: '2099-11-28' }),
+          makeCommitment({ title: 'Consulta', daysOfWeek: [1], date: '2020-01-06' }),
+        ]),
+      ),
+    );
+    renderWithProviders(<CommitmentsScreen />);
+    expect(await screen.findByRole('heading', { name: 'Dentista' })).toBeInTheDocument();
+    expect(screen.getByText(/28 de nov/)).toBeInTheDocument();
+    expect(screen.getByText('Data única')).toBeInTheDocument();
+    expect(screen.getByText('Já passou')).toBeInTheDocument();
+  });
+
+  it('creates a one-off commitment on a single date', async () => {
+    let saved: Record<string, unknown> | undefined;
+    server.use(
+      http.get(`${API}/fixed-commitments`, () => HttpResponse.json([])),
+      suggestion,
+      http.post(`${API}/fixed-commitments`, async ({ request }) => {
+        saved = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(makeCommitment({ title: 'Dentista', date: '2026-11-28' }), {
+          status: 201,
+        });
+      }),
+    );
+    renderWithProviders(<CommitmentsScreen />);
+    await screen.findByRole('heading', { name: 'Nenhum compromisso fixo' });
+    await userEvent.click(
+      screen.getAllByRole('button', { name: 'Novo compromisso' })[0] as HTMLElement,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Novo compromisso' });
+    await userEvent.type(within(dialog).getByLabelText('Título'), 'Dentista');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Data única' }));
+    expect(within(dialog).queryByRole('button', { name: 'terça-feira' })).not.toBeInTheDocument();
+    const date = within(dialog).getByLabelText('Data');
+    await userEvent.clear(date);
+    await userEvent.type(date, '2026-11-28');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+
+    // 2026-11-28 is a Saturday: the weekday is derived from the date.
+    await waitFor(() => expect(saved).toMatchObject({ date: '2026-11-28', daysOfWeek: [6] }));
+  });
+
   it('shows an empty state with a call to action', async () => {
     server.use(http.get(`${API}/fixed-commitments`, () => HttpResponse.json([])));
     renderWithProviders(<CommitmentsScreen />);
@@ -120,6 +166,7 @@ describe('CommitmentsScreen', () => {
       expect(saved).toEqual({
         title: 'Aula de inglês',
         daysOfWeek: [2, 4],
+        date: null,
         startTime: '19:00',
         endTime: '20:30',
         category: 'STUDY',

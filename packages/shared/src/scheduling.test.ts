@@ -9,6 +9,7 @@ import {
   lunchInterval,
   mergeIntervals,
   nextCommitmentStart,
+  occursOn,
   overlaps,
   subtractIntervals,
   travelInterval,
@@ -271,8 +272,20 @@ describe('travel time', () => {
       klass('late', [2], '19:00', '20:00', false),
     ];
     expect(findTravelConflicts(commitments, 60)).toEqual([
-      { commitmentId: 'class', nextCommitmentId: 'course', dayOfWeek: 2, travelEnd: '19:00' },
-      { commitmentId: 'class', nextCommitmentId: 'course', dayOfWeek: 4, travelEnd: '19:00' },
+      {
+        commitmentId: 'class',
+        nextCommitmentId: 'course',
+        dayOfWeek: 2,
+        date: null,
+        travelEnd: '19:00',
+      },
+      {
+        commitmentId: 'class',
+        nextCommitmentId: 'course',
+        dayOfWeek: 4,
+        date: null,
+        travelEnd: '19:00',
+      },
     ]);
     expect(findTravelConflicts(commitments, 15)).toEqual([]);
     expect(findTravelConflicts(commitments, 0)).toEqual([]);
@@ -321,5 +334,74 @@ describe('nextCommitmentStart', () => {
     expect(
       nextCommitmentStart({ daysOfWeek: [], startTime: '08:00' }, at('2026-11-09T09:00'), tz),
     ).toBeNull();
+  });
+});
+
+describe('one-off commitments', () => {
+  // 2026-11-10 is a Tuesday, 2026-11-17 the Tuesday after.
+  const dentist = {
+    id: 'dentist',
+    daysOfWeek: [2],
+    date: '2026-11-10',
+    startTime: '14:00',
+    endTime: '15:00',
+  };
+
+  it('occurs only on its date', () => {
+    expect(occursOn(dentist, '2026-11-10')).toBe(true);
+    expect(occursOn(dentist, '2026-11-17')).toBe(false);
+    expect(occursOn({ daysOfWeek: [2] }, '2026-11-17')).toBe(true);
+    expect(expandCommitments([dentist], '2026-11-09', 14, prefs.timezone)).toEqual([
+      { commitmentId: 'dentist', start: at('2026-11-10T14:00'), end: at('2026-11-10T15:00') },
+    ]);
+  });
+
+  it('blocks tasks and travel only on its date', () => {
+    const context: PlacementContext = { prefs, commitments: [dentist], otherBlocks: [] };
+    expect(checkPlacement(block('2026-11-10T14:00', '2026-11-10T15:00'), context)).toEqual([
+      'OVERLAPS_COMMITMENT',
+    ]);
+    expect(checkPlacement(block('2026-11-17T14:00', '2026-11-17T15:00'), context)).toEqual([]);
+    const travelPrefs = { ...prefs, travelMinutes: 30 };
+    const travelling = [{ ...dentist, requiresTravel: true }];
+    expect(travelInterval('2026-11-10', travelling, travelPrefs)).toEqual({
+      start: at('2026-11-10T15:00'),
+      end: at('2026-11-10T15:30'),
+    });
+    expect(travelInterval('2026-11-17', travelling, travelPrefs)).toBeNull();
+  });
+
+  it('suggests its own start as the next occurrence, or nothing once past', () => {
+    expect(nextCommitmentStart(dentist, at('2026-11-09T09:00'), prefs.timezone)).toBe(
+      at('2026-11-10T14:00'),
+    );
+    expect(nextCommitmentStart(dentist, at('2026-11-10T15:00'), prefs.timezone)).toBeNull();
+  });
+
+  it('overlaps weekly commitments on its weekday but not one-offs on other dates', () => {
+    const weekly = { id: 'class', daysOfWeek: [2, 4], startTime: '14:30', endTime: '16:00' };
+    const otherDate = { ...dentist, id: 'other', date: '2026-11-17' };
+    const sameDate = { ...dentist, id: 'same' };
+    expect(findCommitmentOverlaps([dentist, weekly, otherDate, sameDate])).toEqual([
+      { a: 'dentist', b: 'class', daysOfWeek: [2] },
+      { a: 'dentist', b: 'same', daysOfWeek: [2] },
+      { a: 'class', b: 'other', daysOfWeek: [2] },
+      { a: 'class', b: 'same', daysOfWeek: [2] },
+    ]);
+  });
+
+  it('reports travel conflicts on the one-off date only', () => {
+    const travelling = { ...dentist, requiresTravel: true };
+    const weekly = { id: 'class', daysOfWeek: [2], startTime: '15:30', endTime: '17:00' };
+    const otherDate = { ...dentist, id: 'other', date: '2026-11-17', startTime: '15:15' };
+    expect(findTravelConflicts([travelling, weekly, otherDate], 60)).toEqual([
+      {
+        commitmentId: 'dentist',
+        nextCommitmentId: 'class',
+        dayOfWeek: 2,
+        date: '2026-11-10',
+        travelEnd: '16:00',
+      },
+    ]);
   });
 });

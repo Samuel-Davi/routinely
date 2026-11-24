@@ -5,6 +5,7 @@ import {
   dateRange,
   dayOfWeekOf,
   isOnGrid,
+  minutesToTime,
   timeToMinutes,
   utcToZonedParts,
   zonedToUtcMs,
@@ -32,10 +33,19 @@ export interface SchedulingPreferences {
 export interface SchedulingCommitment {
   id: string;
   daysOfWeek: number[];
+  /** One-off commitment: occurs only on this date (YYYY-MM-DD); `daysOfWeek` is ignored. */
+  date?: DateString | null;
   startTime: string;
   endTime: string;
   requiresTravel?: boolean;
 }
+
+/** Whether a commitment (weekly or one-off) happens on `date`. */
+export const occursOn = (
+  commitment: Pick<SchedulingCommitment, 'daysOfWeek' | 'date'>,
+  date: DateString,
+): boolean =>
+  commitment.date ? commitment.date === date : commitment.daysOfWeek.includes(dayOfWeekOf(date));
 
 export interface CommitmentOccurrence extends Interval {
   commitmentId: string;
@@ -100,9 +110,8 @@ export function expandCommitments(
 ): CommitmentOccurrence[] {
   const occurrences: CommitmentOccurrence[] = [];
   for (const date of dateRange(startDate, days)) {
-    const dow = dayOfWeekOf(date);
     for (const commitment of commitments) {
-      if (!commitment.daysOfWeek.includes(dow)) continue;
+      if (!occursOn(commitment, date)) continue;
       occurrences.push({
         commitmentId: commitment.id,
         start: zonedToUtcMs(date, timeToMinutes(commitment.startTime), timeZone),
@@ -124,9 +133,8 @@ export function travelInterval(
 ): Interval | null {
   const minutes = prefs.travelMinutes ?? 0;
   if (minutes <= 0) return null;
-  const dow = dayOfWeekOf(date);
   const ends = commitments
-    .filter((commitment) => commitment.requiresTravel && commitment.daysOfWeek.includes(dow))
+    .filter((commitment) => commitment.requiresTravel && occursOn(commitment, date))
     .map((commitment) => timeToMinutes(commitment.endTime));
   if (ends.length === 0) return null;
   const start = zonedToUtcMs(date, Math.max(...ends), prefs.timezone);
@@ -139,13 +147,13 @@ export function travelInterval(
  * looking up to 8 days ahead. Used only to *suggest* a task deadline. `null` if it never occurs.
  */
 export function nextCommitmentStart(
-  commitment: Pick<SchedulingCommitment, 'daysOfWeek' | 'startTime'>,
+  commitment: Pick<SchedulingCommitment, 'daysOfWeek' | 'date' | 'startTime'>,
   now: number,
   timeZone: string,
 ): number | null {
   const today = utcToZonedParts(now, timeZone).date;
   for (const date of dateRange(today, 8)) {
-    if (!commitment.daysOfWeek.includes(dayOfWeekOf(date))) continue;
+    if (!occursOn(commitment, date)) continue;
     const start = zonedToUtcMs(date, timeToMinutes(commitment.startTime), timeZone);
     if (start > now) return start;
   }
@@ -160,13 +168,23 @@ export interface CommitmentOverlap {
   daysOfWeek: number[];
 }
 
-/** Pairs of weekly commitments that share time on at least one weekday. */
+/** Two one-off commitments on different dates never meet, whatever their weekday. */
+const canMeet = (
+  a: Pick<SchedulingCommitment, 'date'>,
+  b: Pick<SchedulingCommitment, 'date'>,
+): boolean => !a.date || !b.date || a.date === b.date;
+
+/**
+ * Pairs of commitments that share time on at least one weekday. A one-off commitment
+ * counts on its own weekday (its `daysOfWeek` is `[weekday of date]`).
+ */
 export function findCommitmentOverlaps(
   commitments: readonly SchedulingCommitment[],
 ): CommitmentOverlap[] {
   const overlapsFound: CommitmentOverlap[] = [];
   commitments.forEach((first, index) => {
     for (const second of commitments.slice(index + 1)) {
+      if (!canMeet(first, second)) continue;
       const sameTime = first.startTime < second.endTime && second.startTime < first.endTime;
       const days = first.daysOfWeek.filter((day) => second.daysOfWeek.includes(day));
       if (sameTime && days.length > 0) {
@@ -183,22 +201,43 @@ export interface TravelConflict {
   /** The commitment that starts before the travel ends. */
   nextCommitmentId: string;
   dayOfWeek: number;
+  /** Set when the conflict only happens on one date (a one-off commitment is involved). */
+  date: DateString | null;
   /** "HH:mm" when the travel would end. */
   travelEnd: string;
 }
 
 /**
- * Commitments that start before the travel time of the same day is over. Purely
- * informational: the user decides what to do about it.
+ * Commitments that start before the travel time of the same day is over. Weekly
+ * commitments are checked per weekday; each one-off date is checked on its own, against
+ * the weekly commitments of that weekday. Purely informational: the user decides.
  */
 export function findTravelConflicts(
   commitments: readonly SchedulingCommitment[],
   travelMinutes: number,
 ): TravelConflict[] {
   if (travelMinutes <= 0) return [];
-  const conflicts: TravelConflict[] = [];
+  const weekly = commitments.filter((commitment) => !commitment.date);
+  const days: { dayOfWeek: number; date: DateString | null; today: SchedulingCommitment[] }[] = [];
   for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
-    const today = commitments.filter((commitment) => commitment.daysOfWeek.includes(dayOfWeek));
+    days.push({
+      dayOfWeek,
+      date: null,
+      today: weekly.filter((commitment) => commitment.daysOfWeek.includes(dayOfWeek)),
+    });
+  }
+  const dates = [...new Set(commitments.flatMap((commitment) => commitment.date ?? []))].sort();
+  for (const date of dates) {
+    days.push({
+      dayOfWeek: dayOfWeekOf(date),
+      date,
+      today: commitments.filter((commitment) => occursOn(commitment, date)),
+    });
+  }
+
+  const conflicts: TravelConflict[] = [];
+  const seen = new Set<string>();
+  for (const { dayOfWeek, date, today } of days) {
     const travelling = today
       .filter((commitment) => commitment.requiresTravel)
       .sort((a, b) => a.endTime.localeCompare(b.endTime));
@@ -208,14 +247,20 @@ export function findTravelConflicts(
     const travelEnd = Math.min(travelStart + travelMinutes, 24 * 60 - 1);
     for (const next of today) {
       const start = timeToMinutes(next.startTime);
-      if (next.id !== last.id && start >= travelStart && start < travelEnd) {
-        conflicts.push({
-          commitmentId: last.id,
-          nextCommitmentId: next.id,
-          dayOfWeek,
-          travelEnd: `${String(Math.floor(travelEnd / 60)).padStart(2, '0')}:${String(travelEnd % 60).padStart(2, '0')}`,
-        });
-      }
+      if (next.id === last.id || start < travelStart || start >= travelEnd) continue;
+      const oneOff = Boolean(last.date || next.date);
+      // On a one-off date, weekly-only conflicts were already reported for the weekday.
+      if (date && !oneOff) continue;
+      const key = `${last.id}|${next.id}|${date ?? dayOfWeek}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      conflicts.push({
+        commitmentId: last.id,
+        nextCommitmentId: next.id,
+        dayOfWeek,
+        date,
+        travelEnd: minutesToTime(travelEnd),
+      });
     }
   }
   return conflicts;

@@ -41,6 +41,20 @@ describe('TaskCard', () => {
     );
   });
 
+  it('shows the progress from completed blocks', () => {
+    renderCard(makeTask({ estimatedMinutes: 180, scheduledMinutes: 180, completedMinutes: 90 }));
+    expect(screen.getByRole('progressbar', { name: /Progresso/ })).toHaveAttribute(
+      'aria-valuenow',
+      '50',
+    );
+    expect(screen.getByText('50% · 1h30 de 3h')).toBeInTheDocument();
+  });
+
+  it('hides the progress of a task that has no blocks yet', () => {
+    renderCard();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
   it('shows a chip with the linked commitment only when there is one', () => {
     renderCard(makeTask(), handlers(), 'Web Academy');
     expect(screen.getByText('Web Academy')).toBeInTheDocument();

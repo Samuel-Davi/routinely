@@ -1,6 +1,11 @@
 'use client';
 
-import { findTravelConflicts, type FixedCommitment } from '@routinely/shared';
+import {
+  DEFAULT_TIMEZONE,
+  findTravelConflicts,
+  utcToZonedParts,
+  type FixedCommitment,
+} from '@routinely/shared';
 import { useState } from 'react';
 import { PageHeader } from '@/components/shell/app-shell';
 import {
@@ -17,8 +22,15 @@ import {
   useToast,
 } from '@/components/ui';
 import { errorMessage } from '@/lib/api-client';
+import { useNow } from '@/features/calendar/use-calendar-clock';
 import { usePreferences } from '@/features/preferences/api';
-import { CATEGORY_LABEL, WEEKDAY_SHORT, formatWeekdays } from '@/lib/labels';
+import {
+  CATEGORY_LABEL,
+  WEEKDAY_SHORT,
+  formatCommitmentDays,
+  formatDate,
+  formatWeekdays,
+} from '@/lib/labels';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { panelClosed, panelOpened, selectPanel } from '@/lib/store/ui-slice';
 import { useCommitments, useDeleteCommitment } from './api';
@@ -31,8 +43,13 @@ export function CommitmentsScreen() {
   const remove = useDeleteCommitment();
   const toast = useToast();
   const [deleting, setDeleting] = useState<FixedCommitment | null>(null);
-  const travelMinutes = usePreferences().data?.travelMinutes ?? 0;
+  const preferences = usePreferences().data;
+  const travelMinutes = preferences?.travelMinutes ?? 0;
   const travelConflicts = data ? findTravelConflicts(data, travelMinutes) : [];
+  // Only to tell one-off commitments that already happened.
+  const now = useNow();
+  const today =
+    now === null ? null : utcToZonedParts(now, preferences?.timezone ?? DEFAULT_TIMEZONE).date;
   const titleOf = (id: string) => data?.find((item) => item.id === id)?.title ?? '';
 
   const formOpen = panel?.type === 'commitment-form';
@@ -54,7 +71,7 @@ export function CommitmentsScreen() {
     <>
       <PageHeader
         title="Compromissos"
-        description="O que se repete toda semana. A rotina é montada em volta deles."
+        description="O que se repete toda semana ou acontece uma vez. A rotina é montada em volta deles."
         actions={
           <Button variant="primary" icon="plus" onClick={() => openForm()}>
             Novo compromisso
@@ -90,10 +107,14 @@ export function CommitmentsScreen() {
               <Banner tone="warning" title="Deslocamento apertado">
                 <ul>
                   {travelConflicts.map((conflict) => (
-                    <li key={`${conflict.nextCommitmentId}-${conflict.dayOfWeek}`}>
-                      {WEEKDAY_SHORT[conflict.dayOfWeek]}: {titleOf(conflict.nextCommitmentId)}{' '}
-                      começa antes do fim do deslocamento de {titleOf(conflict.commitmentId)} (
-                      {conflict.travelEnd}).
+                    <li
+                      key={`${conflict.commitmentId}-${conflict.nextCommitmentId}-${conflict.date ?? conflict.dayOfWeek}`}
+                    >
+                      {conflict.date
+                        ? formatDate(conflict.date)
+                        : WEEKDAY_SHORT[conflict.dayOfWeek]}
+                      : {titleOf(conflict.nextCommitmentId)} começa antes do fim do deslocamento de{' '}
+                      {titleOf(conflict.commitmentId)} ({conflict.travelEnd}).
                     </li>
                   ))}
                 </ul>
@@ -116,8 +137,13 @@ export function CommitmentsScreen() {
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge tone={commitment.color}>{CATEGORY_LABEL[commitment.category]}</Badge>
                     <span className="text-footnote text-label-secondary">
-                      {formatWeekdays(commitment.daysOfWeek)}
+                      {formatCommitmentDays(commitment)}
                     </span>
+                    {commitment.date ? (
+                      <Badge tone="gray">
+                        {today && commitment.date < today ? 'Já passou' : 'Data única'}
+                      </Badge>
+                    ) : null}
                     {commitment.requiresTravel ? <Badge tone="gray">Com deslocamento</Badge> : null}
                   </div>
                   {commitment.overlapsWith.length > 0 ? (

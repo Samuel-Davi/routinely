@@ -14,6 +14,7 @@ const input: FixedCommitmentInput = {
   endTime: '19:00',
   category: 'HEALTH',
   color: 'green',
+  date: null,
   requiresTravel: false,
 };
 const row: FixedCommitmentRow = {

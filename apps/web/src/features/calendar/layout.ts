@@ -1,7 +1,7 @@
 import {
   GRID_MINUTES,
   MINUTE_MS,
-  dayOfWeekOf,
+  occursOn,
   timeToMinutes,
   utcToZonedParts,
   zonedToUtcMs,
@@ -64,9 +64,8 @@ export function commitmentsForDay(
   commitments: readonly FixedCommitment[],
   bounds: GridBounds,
 ): PositionedCommitment[] {
-  const dow = dayOfWeekOf(date);
   return commitments
-    .filter((commitment) => commitment.daysOfWeek.includes(dow))
+    .filter((commitment) => occursOn(commitment, date))
     .flatMap((commitment) => {
       const box = boxFor(
         timeToMinutes(commitment.startTime),

@@ -5,6 +5,7 @@ import {
   createTaskSchema,
   estimateTaskOutputSchema,
   fixedCommitmentInputSchema,
+  taskProgress,
   generateRoutineInputSchema,
   generateRoutineOutputSchema,
   moveBlockSchema,
@@ -29,6 +30,7 @@ describe('fixedCommitmentInputSchema', () => {
   it('accepts a valid commitment', () => {
     expect(fixedCommitmentInputSchema.parse(commitment)).toEqual({
       ...commitment,
+      date: null,
       requiresTravel: false,
     });
     expect(
@@ -36,7 +38,18 @@ describe('fixedCommitmentInputSchema', () => {
     ).toBe(true);
   });
 
+  it('accepts a one-off commitment and derives its weekday', () => {
+    // 2026-11-28 is a Saturday
+    const parsed = fixedCommitmentInputSchema.parse({
+      ...commitment,
+      daysOfWeek: [],
+      date: '2026-11-28',
+    });
+    expect(parsed).toMatchObject({ date: '2026-11-28', daysOfWeek: [6] });
+  });
+
   it.each([
+    ['bad date', { date: '28/11/2026' }],
     ['empty title', { title: '  ' }],
     ['no days', { daysOfWeek: [] }],
     ['repeated days', { daysOfWeek: [1, 1] }],
@@ -219,5 +232,25 @@ describe('unscheduledTaskSchema', () => {
         missingMinutes: 60,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('taskProgress', () => {
+  const base = {
+    status: 'SCHEDULED' as const,
+    estimatedMinutes: 120,
+    completedMinutes: 0,
+    scheduledMinutes: 120,
+  };
+
+  it('divides completed minutes by the larger of estimate and scheduled time', () => {
+    expect(taskProgress({ ...base, completedMinutes: 30 })).toBe(0.25);
+    expect(taskProgress({ ...base, scheduledMinutes: 60, completedMinutes: 60 })).toBe(0.5);
+    expect(taskProgress({ ...base, scheduledMinutes: 240, completedMinutes: 60 })).toBe(0.25);
+  });
+
+  it('is 1 for a finished task and null with nothing to measure', () => {
+    expect(taskProgress({ ...base, status: 'DONE' })).toBe(1);
+    expect(taskProgress({ ...base, estimatedMinutes: null, scheduledMinutes: 0 })).toBeNull();
   });
 });

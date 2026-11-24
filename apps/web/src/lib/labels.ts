@@ -188,6 +188,16 @@ export function formatDate(
   );
 }
 
+/** When a commitment happens: its date when one-off, its weekdays otherwise. */
+export function formatCommitmentDays(commitment: {
+  daysOfWeek: readonly number[];
+  date: string | null;
+}): string {
+  return commitment.date
+    ? formatDate(commitment.date, { weekday: 'short', day: 'numeric', month: 'short' })
+    : formatWeekdays(commitment.daysOfWeek);
+}
+
 /** "em 3 dias", "hoje", "amanhã", "atrasada há 2 dias". */
 export function formatRelativeDeadline(
   deadline: string,

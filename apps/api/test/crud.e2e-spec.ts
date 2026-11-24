@@ -37,6 +37,19 @@ describe('CRUD endpoints (e2e)', () => {
       color: 'purple',
     };
 
+    it('stores a one-off commitment on its date, with its weekday derived', async () => {
+      const created = await http()
+        .post('/fixed-commitments')
+        .send({ ...commitment, daysOfWeek: [], date: '2026-11-28' })
+        .expect(201);
+      expect(created.body).toMatchObject({ date: '2026-11-28', daysOfWeek: [6] });
+      const weekly = await http()
+        .put(`/fixed-commitments/${created.body.id as string}`)
+        .send(commitment)
+        .expect(200);
+      expect(weekly.body).toMatchObject({ date: null, daysOfWeek: [2, 4] });
+    });
+
     it('creates, lists, updates and deletes a commitment', async () => {
       const created = await http().post('/fixed-commitments').send(commitment).expect(201);
       expect(created.body).toMatchObject({

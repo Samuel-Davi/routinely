@@ -30,6 +30,7 @@ export function toFixedCommitmentDto(
     id: row.id,
     title: row.title,
     daysOfWeek: [...row.daysOfWeek].sort((a, b) => a - b),
+    date: row.date,
     startTime: row.startTime,
     endTime: row.endTime,
     category: row.category,

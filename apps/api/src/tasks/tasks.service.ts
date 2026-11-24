@@ -5,7 +5,7 @@ import { AppError } from '../common/app-error';
 import { CurrentUser } from '../common/current-user';
 import { DemoLimitsService } from '../users/demo-limits.service';
 import { ESTIMATION_QUEUE, type EstimationQueue } from './estimation-queue';
-import { toTaskDto } from './task.mapper';
+import { NO_BLOCKS, toTaskDto } from './task.mapper';
 import { TasksRepository, type TaskUpdateData } from './tasks.repository';
 
 @Injectable()
@@ -19,11 +19,15 @@ export class TasksService {
 
   async list(filter: { status?: TaskStatus; commitmentId?: string } = {}): Promise<Task[]> {
     const rows = await this.repository.findAll(this.currentUser.id, filter);
-    return rows.map(toTaskDto);
+    const minutes = await this.repository.blockMinutes(
+      this.currentUser.id,
+      rows.map((row) => row.id),
+    );
+    return rows.map((row) => toTaskDto(row, minutes.get(row.id)));
   }
 
   async get(id: string): Promise<Task> {
-    return toTaskDto(await this.findOrThrow(id));
+    return this.toDto(await this.findOrThrow(id));
   }
 
   /** Creates the task and asks the AI for an estimate in the background. */
@@ -90,7 +94,7 @@ export class TasksService {
     if (affectsPlan) data.planChangedAt = new Date();
     const row = await this.repository.update(id, data);
     if (needsEstimate) this.estimationQueue.enqueue(row.id);
-    return toTaskDto(row);
+    return this.toDto(row);
   }
 
   /** Discards any manual override and asks the AI again. */
@@ -101,7 +105,7 @@ export class TasksService {
       estimationSource: null,
     });
     this.estimationQueue.enqueue(row.id);
-    return toTaskDto(row);
+    return this.toDto(row);
   }
 
   async remove(id: string): Promise<void> {
@@ -115,6 +119,12 @@ export class TasksService {
     if (!(await this.repository.commitmentExists(this.currentUser.id, commitmentId))) {
       throw AppError.notFound('Compromisso');
     }
+  }
+
+  /** DTO with the task's progress (its block minutes in the active routine). */
+  private async toDto(row: TaskRow): Promise<Task> {
+    const minutes = await this.repository.blockMinutes(this.currentUser.id, [row.id]);
+    return toTaskDto(row, minutes.get(row.id) ?? NO_BLOCKS);
   }
 
   private async findOrThrow(id: string): Promise<TaskRow> {

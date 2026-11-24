@@ -197,6 +197,11 @@ O app pode ficar público sem expor a chave do Gemini nem a cota gratuita.
 - **UI:** o aviso é separado em "alocada com menos tempo do que precisa" (parcial) e "ficou fora" (sem horário), com a explicação por tarefa.
 - **Correção junto:** o teste aleatório de invariantes achou que dois blocos da **mesma tarefa** em janelas diferentes (separadas por um compromisso curto) podiam ficar a menos que a pausa mínima; a pausa agora vale entre janelas.
 
+## ADR-029 — Compromisso de data única e progresso da tarefa calculado pelos blocos
+
+- **Compromisso de data única:** `FixedCommitment` ganhou `date` (`YYYY-MM-DD` no fuso do usuário, nulo = semanal), em migration aditiva. O schema de entrada deriva `daysOfWeek = [dia da semana da data]`, para que visões por dia da semana (sobreposições, avisos de deslocamento) continuem funcionando; quem decide se o compromisso acontece num dia é `occursOn` (`packages/shared`), usado por `expandCommitments`, `travelInterval`, `nextCommitmentStart` e pelo calendário. Assim o motor, o validador e o heurístico tratam o novo tipo sem mudança. Dois compromissos únicos em datas diferentes nunca se sobrepõem; os conflitos de deslocamento com um compromisso único são avaliados na data dele. O compromisso único que já passou continua na lista (marcado "Já passou") e deixa de afetar o planejamento por conta própria.
+- **Progresso da tarefa:** calculado, não digitado. `completedMinutes` e `scheduledMinutes` vêm dos blocos da tarefa na rotina ativa (os blocos concluídos são copiados ao replanejar, então a rotina ativa tem o histórico). `taskProgress` divide os minutos concluídos pelo maior entre a estimativa e o tempo agendado; tarefa concluída é sempre 100%. Alternativa descartada: um campo manual, que se descolaria dos blocos marcados no calendário.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).
