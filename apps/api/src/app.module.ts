@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { AiModule } from './ai/ai.module';
+import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { AuthModule } from './auth/auth.module';
 import { CommonModule } from './common/common.module';
 import { DemoModule } from './demo/demo.module';
 import { APP_CONFIG, ConfigModule, type AppConfig } from './config/config.module';
 import { FixedCommitmentsModule } from './fixed-commitments/fixed-commitments.module';
 import { HealthModule } from './health/health.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { PreferencesModule } from './preferences/preferences.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RoutinesModule } from './routines/routines.module';
@@ -55,6 +57,8 @@ import { UsersModule } from './users/users.module';
     PreferencesModule,
     RoutinesModule,
     DemoModule,
+    ApiTokensModule,
+    IntegrationsModule,
   ],
 })
 export class AppModule {}
