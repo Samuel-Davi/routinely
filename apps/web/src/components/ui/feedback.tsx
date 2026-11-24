@@ -92,8 +92,9 @@ export function ErrorState({
 
 export type Tone = 'blue' | 'green' | 'orange' | 'purple' | 'pink' | 'teal' | 'red' | 'gray';
 
+/** Sets a line ink on the element: `--tone` for the ink and `--tone-on` for text drawn on it. */
 export const toneStyle = (tone: Tone): CSSProperties =>
-  ({ '--tone': `var(--tone-${tone})` }) as CSSProperties;
+  ({ '--tone': `var(--tone-${tone})`, '--tone-on': `var(--tone-on-${tone})` }) as CSSProperties;
 
 interface BadgeProps {
   tone?: Tone;

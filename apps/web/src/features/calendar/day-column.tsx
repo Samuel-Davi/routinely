@@ -9,7 +9,6 @@ import {
   type RoutineBlock,
 } from '@routinely/shared';
 import type { ReactNode } from 'react';
-import { toneStyle } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { WEEKDAY_LONG, formatDate } from '@/lib/labels';
 import {
@@ -22,6 +21,7 @@ import {
   type GridBounds,
   type PositionedBlock,
 } from './layout';
+import { lineStyle, useLine } from './lines';
 
 interface DayColumnProps {
   date: DateString;
@@ -31,6 +31,8 @@ interface DayColumnProps {
   blocks: readonly RoutineBlock[];
   now: number | null;
   isToday: boolean;
+  /** Position in the visible week: staggers the arrival of a run's stations day by day. */
+  dayIndex?: number;
   renderBlock: (positioned: PositionedBlock) => ReactNode;
   /** Extra layers drawn above everything (e.g. the drag preview). */
   overlay?: ReactNode;
@@ -50,6 +52,7 @@ export function DayColumn({
   blocks,
   now,
   isToday,
+  dayIndex = 0,
   renderBlock,
   overlay,
 }: DayColumnProps) {
@@ -72,7 +75,7 @@ export function DayColumn({
         'relative min-w-0 flex-1 border-l border-hairline first:border-l-0',
         isToday && 'bg-accent/[0.03]',
       )}
-      style={{ height: gridHeight(bounds) }}
+      style={{ height: gridHeight(bounds), ['--day-index' as string]: dayIndex }}
     >
       {/* Hour lines */}
       <div aria-hidden="true" className="absolute inset-0">
@@ -84,7 +87,7 @@ export function DayColumn({
       {lunch ? (
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 flex items-center justify-center bg-fill/50 text-caption text-label-tertiary"
+          className="absolute inset-x-0 flex items-center justify-center bg-fill/40 text-caption text-label-tertiary"
           style={{ top: lunch.top, height: lunch.height }}
         >
           {lunch.height >= 40 ? 'Almoço' : null}
@@ -94,7 +97,7 @@ export function DayColumn({
       {travel ? (
         <div
           data-testid="travel-band"
-          className="absolute inset-x-0 flex items-center justify-center bg-fill/50 text-caption text-label-tertiary"
+          className="absolute inset-x-0 flex items-center justify-center bg-fill/70 text-caption text-label-tertiary"
           style={{ top: travel.top, height: travel.height }}
         >
           {travel.height >= 28 ? 'Deslocamento' : <span className="sr-only">Deslocamento</span>}
@@ -103,23 +106,7 @@ export function DayColumn({
 
       <ul className="contents">
         {dayCommitments.map(({ commitment, top, height }) => (
-          <li
-            key={commitment.id}
-            style={{ ...toneStyle(commitment.color), top: top + 1, height: height - 2 }}
-            // Fixed commitments recede: neutral, low contrast, only a small tint dot for category.
-            className="absolute inset-x-1 overflow-hidden rounded-[0.5rem] bg-fill/70 px-2 py-1"
-          >
-            <span className="sr-only">Compromisso fixo: </span>
-            <span className="flex items-center gap-1.5 truncate text-caption font-medium text-label-secondary">
-              <span aria-hidden="true" className="tone-solid size-1.5 shrink-0 rounded-full" />
-              <span className="truncate">{commitment.title}</span>
-            </span>
-            {height >= 44 ? (
-              <span className="block truncate text-caption tabular-nums text-label-tertiary">
-                {commitment.startTime}–{commitment.endTime}
-              </span>
-            ) : null}
-          </li>
+          <CommitmentLine key={commitment.id} commitment={commitment} top={top} height={height} />
         ))}
         {dayBlocks.map((positioned) => (
           <li
@@ -133,17 +120,45 @@ export function DayColumn({
       </ul>
 
       {nowTop !== null ? (
+        // Now: the category's red line with a dot at its start.
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
-          style={{ top: nowTop - 4 }}
+          style={{ top: nowTop - 5 }}
         >
-          <span className="-ml-1 size-2 rounded-full bg-danger" />
-          <span className="h-px flex-1 bg-danger" />
+          <span className="-ml-[5px] size-2.5 shrink-0 rounded-full bg-danger" />
+          <span className="h-0.5 flex-1 bg-danger" />
         </div>
       ) : null}
 
       {overlay}
     </section>
+  );
+}
+
+/** A fixed commitment drawn as a calendar event: a soft tint of its colour, text in its ink. */
+function CommitmentLine({
+  commitment,
+  top,
+  height,
+}: {
+  commitment: FixedCommitment;
+  top: number;
+  height: number;
+}) {
+  const line = useLine(commitment.id);
+  return (
+    <li
+      style={{ top: top + 1, height: height - 2, ...lineStyle(line) }}
+      className="event absolute inset-x-1 overflow-hidden rounded-[0.375rem] px-2 py-1"
+    >
+      <span className="sr-only">Compromisso fixo: </span>
+      <span className="block truncate text-caption font-semibold">{commitment.title}</span>
+      {height >= 40 ? (
+        <span className="block truncate text-caption tabular-nums opacity-80">
+          {commitment.startTime}–{commitment.endTime}
+        </span>
+      ) : null}
+    </li>
   );
 }

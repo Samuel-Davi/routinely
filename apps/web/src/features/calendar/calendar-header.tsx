@@ -2,7 +2,7 @@
 
 import type { DateString } from '@routinely/shared';
 import type { ReactNode } from 'react';
-import { Button, IconButton, Menu, MenuItem, MenuSeparator } from '@/components/ui';
+import { Button, IconButton, Menu, MenuItem, SegmentedControl } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { WEEKDAY_SHORT, formatDate } from '@/lib/labels';
 import {
@@ -27,6 +27,11 @@ interface CalendarHeaderProps {
   /** Secondary actions (replan…) for the "more options" menu. */
   menuItems?: (close: () => void) => ReactNode;
 }
+
+const VIEW_MODES = [
+  { value: 'week', label: 'Semana' },
+  { value: 'day', label: 'Dia' },
+] as const;
 
 export function CalendarHeader({
   weekDates,
@@ -55,7 +60,17 @@ export function CalendarHeader({
             : formatWeekRange(weekDates)}
         </h1>
 
-        <div className="flex items-center rounded-full bg-fill">
+        {/* On phones the calendar is always a day view; the switch is a desktop choice. */}
+        <div className="hidden md:block">
+          <SegmentedControl
+            label="Modo de visão"
+            options={VIEW_MODES}
+            value={viewMode}
+            onChange={(mode) => dispatch(viewModeChosen(mode))}
+          />
+        </div>
+
+        <div className="flex items-center rounded-control border border-separator bg-surface">
           <IconButton
             icon="chevron-left"
             label={dayMode ? 'Dia anterior' : 'Semana anterior'}
@@ -81,30 +96,6 @@ export function CalendarHeader({
         <Menu label="Mais opções" indicator={filterCount > 0}>
           {(close) => (
             <>
-              {/* On phones the calendar is always a day view; the switch is a desktop choice. */}
-              <div className="hidden md:block" role="group" aria-label="Modo de visão">
-                <MenuItem
-                  icon="calendar"
-                  checked={viewMode === 'week'}
-                  onSelect={() => {
-                    dispatch(viewModeChosen('week'));
-                    close();
-                  }}
-                >
-                  Visão semanal
-                </MenuItem>
-                <MenuItem
-                  icon="clock"
-                  checked={viewMode === 'day'}
-                  onSelect={() => {
-                    dispatch(viewModeChosen('day'));
-                    close();
-                  }}
-                >
-                  Visão diária
-                </MenuItem>
-                <MenuSeparator />
-              </div>
               <MenuItem
                 icon="filter"
                 detail={filterCount > 0 ? String(filterCount) : undefined}

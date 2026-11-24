@@ -17,12 +17,12 @@ export const DESTINATIONS: readonly { href: string; label: string; icon: IconNam
 const isCurrent = (pathname: string, href: string) =>
   href === '/' ? pathname === '/' : pathname.startsWith(href);
 
-/** Horizontal links for the desktop top bar. */
-export function TopNavLinks() {
+/** Icon + label rows for the desktop sidebar. */
+export function SidebarLinks() {
   const pathname = usePathname();
   return (
-    <ul className="flex items-center gap-1">
-      {DESTINATIONS.map(({ href, label }) => {
+    <ul className="flex flex-col gap-0.5">
+      {DESTINATIONS.map(({ href, label, icon }) => {
         const current = isCurrent(pathname, href);
         return (
           <li key={href}>
@@ -30,10 +30,13 @@ export function TopNavLinks() {
               href={href}
               aria-current={current ? 'page' : undefined}
               className={cn(
-                'pressable flex h-11 items-center rounded-full px-3.5 text-footnote font-medium',
-                current ? 'bg-fill text-label' : 'text-label-secondary hover:text-label',
+                'pressable flex h-11 items-center gap-3 rounded-control px-3 text-body font-medium',
+                current
+                  ? 'bg-accent-soft text-accent-text'
+                  : 'text-on-shell-secondary hover:bg-fill hover:text-on-shell',
               )}
             >
+              <Icon name={icon} size={20} />
               {label}
             </Link>
           </li>

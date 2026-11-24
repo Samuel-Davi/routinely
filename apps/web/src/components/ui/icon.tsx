@@ -9,6 +9,7 @@ const PATHS = {
   settings: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M16 4v4M10 10v4M18 16v4',
   plus: 'M12 5v14M5 12h14',
   'chevron-left': 'M15 5l-7 7 7 7',
+  'arrow-right': 'M4 12h15M13 6l6 6-6 6',
   'chevron-right': 'M9 5l7 7-7 7',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z',
   unlock:
@@ -28,6 +29,10 @@ const PATHS = {
   restore: 'M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-3',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   'chevron-down': 'M6 9l6 6 6-6',
+  sun: 'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
+  moon: 'M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z',
+  monitor: 'M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1ZM9 20h6M12 16v4',
+  logout: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l4-4-4-4M14 12H4',
 } as const;
 
 export type IconName = keyof typeof PATHS;

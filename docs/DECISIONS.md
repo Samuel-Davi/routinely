@@ -211,6 +211,25 @@ O app pode ficar público sem expor a chave do Gemini nem a cota gratuita.
 - **Acesso:** o proxy `/api/*` da Vercel repassa só um conjunto fixo de headers (não o `Authorization`), de propósito: ele existe para os cookies do navegador. O Jarvis chama a URL do Render direto e faz um `GET /health` antes para acordar a instância grátis.
 - **Alternativas descartadas:** liberar o `Authorization` no proxy (abriria um segundo caminho de autenticação pelo front sem necessidade); JWT de longa duração (não dá para revogar um a um nem listar).
 
+## ADR-031 — Identidade visual "Mapa do metrô" e o resultado de cada geração (visual substituído pelo ADR-033)
+
+- **Contexto:** uma crítica de design (impeccable, 23/40) achou o visual competente mas genérico ("estilo Apple" que qualquer calendário poderia ter) e apontou o momento da IA como o mais apagado da interface: depois de "Gerar rotina" só aparecia um toast.
+- **Mundo visual:** a semana como uma rede de metrô. Cada compromisso fixo é uma **linha** numerada na tinta da sua cor (`buildLines`, ordem de criação); cada tarefa alocada é uma **estação** nessa linha (borda e anel na tinta da linha; tarefa sem compromisso fica na linha neutra "Horário livre"). O shell é esmalte azul-noite (`--shell`), o chão claro é porcelana, e no escuro o chão inteiro vira esmalte. Ação principal em escarlate; links, foco e seleção em cobalto; a prioridade virou palavra ("URGENTE"), não cor. Fonte Overpass (linhagem Highway Gothic), self-hosted via `next/font/local`. Escolhida numa rodada de direções (sorteio do impeccable) em vez do Concretismo sorteado e do padrão da categoria.
+- **Resultado da geração:** ao terminar um job, `compareRuns` compara a nova versão com a que estava no cache por tarefa e horário (os blocos ganham ids novos a cada versão) e grava `lastRun` no Redux (estado de UI, não dado da API). Um cartão de resultado substitui a faixa de avisos: "Semana montada · 13 blocos · 4 novos · 2 movidos · 1 ficou fora · pela IA", com **Desfazer** (restaura a versão anterior pelo endpoint de restore já existente), **Ver o que mudou** e dispensar. As estações novas ou movidas chegam pela linha, dia a dia, e mantêm um anel por 4 s; com `prefers-reduced-motion` só o anel fica. O toast de sucesso saiu; os de erro ficam. Na demo, "sem IA" é informativo; uma falha real da IA continua como aviso. Nenhuma mudança na API.
+- **Alternativas descartadas:** toast com Desfazer (some antes de ser lido); comparar pelo `diffSummary` do servidor (só traz contagens, não diz quais blocos destacar).
+
+## ADR-032 — Painel de tarefas ao lado da semana, só de leitura
+
+- **Contexto:** para saber o que ficou de fora, o prazo e quanto tempo a semana dá a cada tarefa, era preciso alternar entre Semana e Tarefas. Os concorrentes (Sunsama, Akiflow, Motion) mantêm a lista ao lado do calendário.
+- **Decisão:** em telas a partir de 1280 px, um painel "Tarefas abertas" agrupa as tarefas pela linha (compromisso) e mostra prazo relativo, horas na semana visível sobre a estimativa e o aviso de "parcial" ou "ficou fora" (`buildStations`, função pura). Clicar numa tarefa marca os blocos dela na grade (`focusedTaskId`, estado de UI). O painel pode ser fechado (`tasksPanelOpen`). A troca Semana/Dia saiu do menu e virou controle visível; "Replanejar" virou botão ao lado de "Gerar rotina" a partir de tablets (no celular continua no menu).
+- **Fora de escopo:** arrastar uma tarefa do painel para a grade. Exigiria criar blocos fora de uma geração (rota nova validada por `validateAllocations`); fica para quando houver necessidade real.
+
+## ADR-033 — Visual no padrão Sunsama/Motion e seletor de tema
+
+- **Contexto:** o mundo "Mapa do metrô" (ADR-031) foi recusado como pouco moderno. O pedido foi seguir o padrão de mercado de Sunsama e Motion, com destaque índigo, barra lateral e um botão de tema.
+- **Decisão:** padrão da categoria executado com cuidado, sem copiar marca, logo ou cores exatas desses produtos. Barra lateral clara (navegação com ícones, seletor de tema e conta no rodapé; no celular, barra superior leve e abas embaixo); fundo quase branco, cartões brancos com sombra suave e cantos de 8 a 12 px; compromissos como eventos em tom claro da sua cor; tarefas como cartões com círculo de check e ponto da cor do compromisso; um único acento índigo; fonte Inter self-hosted; linha vermelha do "agora". O resultado da geração, o Desfazer, o destaque das mudanças (agora um anel índigo) e a coluna de tarefas do ADR-032 continuam.
+- **Tema:** "Sistema", "Claro" ou "Escuro", escolhido no app e guardado em `localStorage` (`routinely:theme`). O tema vira `data-theme` no `<html>`, aplicado por `public/theme.js` antes da primeira pintura (sem piscar); em "Sistema" o app acompanha a mudança do sistema ao vivo. Os tokens escuros ficam em `:root[data-theme='dark']`.
+
 # Pendências e riscos conhecidos
 
 - **Modelo de retry do Gemini:** `gemini-3.6-flash` existe para a chave atual (verificado por `models.list`), mas sua cota é de 20 requisições/dia e o modelo não foi comparado (ADR-021).

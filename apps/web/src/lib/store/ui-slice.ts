@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { CreateTaskInput, FixedCommitmentInput } from '@routinely/shared';
+import type { RunResult } from '@/features/routine/run-result';
 
 /** Which sheet/modal is open. IDs only: the entity itself lives in TanStack Query. */
 export type Panel =
@@ -22,6 +23,14 @@ export interface UiState {
   dismissedSuggestionFor: string | null;
   /** Commitment the task list is filtered by (null = all). */
   taskCommitmentFilter: string | null;
+  /** What the last generation/replan changed, until dismissed or replaced by the next one. */
+  lastRun: RunResult | null;
+  /** Whether the grid is highlighting the blocks the last run added or moved. */
+  runHighlight: boolean;
+  /** The week's side panel of open tasks (wide screens only). */
+  tasksPanelOpen: boolean;
+  /** Task picked in the side panel: its blocks are marked on the grid. */
+  focusedTaskId: string | null;
 }
 
 const initialState: UiState = {
@@ -30,6 +39,10 @@ const initialState: UiState = {
   pendingRoutineId: null,
   dismissedSuggestionFor: null,
   taskCommitmentFilter: null,
+  lastRun: null,
+  runHighlight: false,
+  tasksPanelOpen: true,
+  focusedTaskId: null,
 };
 
 const uiSlice = createSlice({
@@ -61,6 +74,23 @@ const uiSlice = createSlice({
     suggestionDismissed(state, action: PayloadAction<string>) {
       state.dismissedSuggestionFor = action.payload;
     },
+    runFinished(state, action: PayloadAction<RunResult>) {
+      state.lastRun = action.payload;
+      state.runHighlight = action.payload.changedBlockIds.length > 0;
+    },
+    runHighlightSet(state, action: PayloadAction<boolean>) {
+      state.runHighlight = action.payload && state.lastRun !== null;
+    },
+    tasksPanelToggled(state) {
+      state.tasksPanelOpen = !state.tasksPanelOpen;
+    },
+    taskFocused(state, action: PayloadAction<string | null>) {
+      state.focusedTaskId = state.focusedTaskId === action.payload ? null : action.payload;
+    },
+    runDismissed(state) {
+      state.lastRun = null;
+      state.runHighlight = false;
+    },
   },
 });
 
@@ -73,6 +103,11 @@ export const {
   routineJobSettled,
   suggestionDismissed,
   taskCommitmentFilterSet,
+  runFinished,
+  runHighlightSet,
+  runDismissed,
+  tasksPanelToggled,
+  taskFocused,
 } = uiSlice.actions;
 export const uiReducer = uiSlice.reducer;
 
@@ -84,3 +119,7 @@ export const selectCommitmentDraft = (state: WithUi) => state.ui.drafts.commitme
 export const selectPendingRoutineId = (state: WithUi) => state.ui.pendingRoutineId;
 export const selectDismissedSuggestionFor = (state: WithUi) => state.ui.dismissedSuggestionFor;
 export const selectTaskCommitmentFilter = (state: WithUi) => state.ui.taskCommitmentFilter;
+export const selectLastRun = (state: WithUi) => state.ui.lastRun;
+export const selectRunHighlight = (state: WithUi) => state.ui.runHighlight;
+export const selectTasksPanelOpen = (state: WithUi) => state.ui.tasksPanelOpen;
+export const selectFocusedTaskId = (state: WithUi) => state.ui.focusedTaskId;

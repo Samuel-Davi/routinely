@@ -21,7 +21,10 @@ interface RoutineActionsProps {
   pending: boolean;
 }
 
-/** The one primary action of the calendar: generate the routine ("Replanejar" lives in the menu). */
+/**
+ * The calendar's routine actions: "Gerar rotina" (the one primary action) and, once a routine
+ * exists, "Replanejar" beside it on wide screens (phones reach it through the menu).
+ */
 export function RoutineActions({ hasRoutine, pending }: RoutineActionsProps) {
   const dispatch = useAppDispatch();
   const start = useStartRoutineJob();
@@ -29,9 +32,21 @@ export function RoutineActions({ hasRoutine, pending }: RoutineActionsProps) {
 
   return (
     <>
+      {hasRoutine ? (
+        <div className="hidden md:block">
+          <Button
+            variant="secondary"
+            icon="refresh"
+            disabled={busy}
+            onClick={() => dispatch(panelOpened({ type: 'generate-routine', mode: 'replan' }))}
+          >
+            Replanejar
+          </Button>
+        </div>
+      ) : null}
       <Button
         variant="primary"
-        icon="sparkles"
+        icon="arrow-right"
         loading={busy}
         disabled={busy}
         onClick={() => dispatch(panelOpened({ type: 'generate-routine' }))}
@@ -114,7 +129,7 @@ function GenerateRoutineSheet({
           </Button>
           <Button
             variant="primary"
-            icon={replanning ? 'refresh' : 'sparkles'}
+            icon={replanning ? 'refresh' : 'arrow-right'}
             data-autofocus
             disabled={!parsed.success}
             onClick={submit}

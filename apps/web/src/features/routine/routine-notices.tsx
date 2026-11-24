@@ -2,13 +2,25 @@
 
 import type { Routine } from '@routinely/shared';
 import Link from 'next/link';
-import { useId, useState, type ReactNode } from 'react';
-import { Button, Icon, Spinner, toneStyle } from '@/components/ui';
+import { Fragment, useEffect, useId, useState, type ReactNode } from 'react';
+import { Button, Icon, IconButton, Spinner, toneStyle, useToast } from '@/components/ui';
+import { useMe } from '@/features/auth/api';
 import { cn } from '@/lib/cn';
 import { describeUnscheduled, replanReasonLabel } from '@/lib/labels';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
-import { selectDismissedSuggestionFor, suggestionDismissed } from '@/lib/store/ui-slice';
-import { useReplanSuggestion, useStartRoutineJob } from './api';
+import {
+  runDismissed,
+  runHighlightSet,
+  selectDismissedSuggestionFor,
+  selectLastRun,
+  selectRunHighlight,
+  suggestionDismissed,
+} from '@/lib/store/ui-slice';
+import { useReplanSuggestion, useRestoreRoutine, useStartRoutineJob } from './api';
+import { describeRun, type RunResult } from './run-result';
+
+/** How long the grid keeps the blocks a run added or moved highlighted. */
+export const RUN_HIGHLIGHT_MS = 4000;
 
 interface RoutineNoticesProps {
   routine: Routine | null;
@@ -20,6 +32,8 @@ export function RoutineNotices({ routine, pending }: RoutineNoticesProps) {
   const dispatch = useAppDispatch();
   const suggestion = useReplanSuggestion();
   const dismissedFor = useAppSelector(selectDismissedSuggestionFor);
+  const lastRun = useAppSelector(selectLastRun);
+  const me = useMe();
   const start = useStartRoutineJob();
 
   if (pending) {
@@ -75,13 +89,26 @@ export function RoutineNotices({ routine, pending }: RoutineNoticesProps) {
     });
   }
 
+  const isDemo = me.data?.isDemo ?? false;
   if (routine.source === 'HEURISTIC') {
-    items.push({
-      key: 'source',
-      tone: 'warning',
-      title: 'Rotina gerada sem IA',
-      body: routine.notice ?? 'Os horários foram escolhidos por um algoritmo determinístico.',
-    });
+    // In the demo the local planner is the design, not a failure: say so calmly.
+    items.push(
+      isDemo
+        ? {
+            key: 'source',
+            tone: 'info',
+            title: 'Montada pelo planejador local',
+            body: 'A conta demo não usa IA: os horários vêm do mesmo planejador que garante a rotina quando a IA falha.',
+          }
+        : {
+            key: 'source',
+            tone: 'warning',
+            title: 'Rotina gerada sem IA',
+            body:
+              routine.notice ??
+              'A IA não respondeu; os horários foram escolhidos pelo planejador local.',
+          },
+    );
   } else if (routine.notice) {
     items.push({
       key: 'source',
@@ -141,7 +168,189 @@ export function RoutineNotices({ routine, pending }: RoutineNoticesProps) {
     });
   }
 
+  if (lastRun && lastRun.routineId === routine.id) {
+    return (
+      <RunResultCard
+        result={lastRun}
+        routine={routine}
+        isDemo={isDemo}
+        items={items.filter((item) => item.key !== 'source' || item.tone === 'warning')}
+      />
+    );
+  }
   return <StatusStrip items={items} />;
+}
+
+/**
+ * The answer to "Gerar rotina": what the run did, stated in figures, with the way back.
+ * It stays until dismissed or replaced by the next run.
+ */
+function RunResultCard({
+  result,
+  routine,
+  isDemo,
+  items,
+}: {
+  result: RunResult;
+  routine: Routine;
+  isDemo: boolean;
+  items: readonly NoticeItem[];
+}) {
+  const dispatch = useAppDispatch();
+  const highlight = useAppSelector(selectRunHighlight);
+  const restore = useRestoreRoutine();
+  const toast = useToast();
+
+  useEffect(() => {
+    if (!highlight) return undefined;
+    const id = setTimeout(() => dispatch(runHighlightSet(false)), RUN_HIGHLIGHT_MS);
+    return () => clearTimeout(id);
+  }, [highlight, dispatch]);
+
+  const changed = result.added + result.moved;
+  const partial = routine.unscheduled.filter((item) => item.reason === 'PARTIAL').length;
+  const leftOut = routine.unscheduled.length - partial;
+  const attention = partial + leftOut > 0 || (routine.source === 'HEURISTIC' && !isDemo);
+  const title =
+    result.previousRoutineId && changed === 0
+      ? 'Semana em dia: nada mudou'
+      : routine.trigger === 'REPLAN'
+        ? 'Semana replanejada'
+        : 'Semana montada';
+  const source =
+    routine.source === 'HEURISTIC'
+      ? isDemo
+        ? 'pelo planejador local'
+        : 'sem IA'
+      : routine.source === 'AI_REPAIRED'
+        ? 'pela IA, com ajustes'
+        : 'pela IA';
+
+  const replay = () => {
+    dispatch(runHighlightSet(false));
+    requestAnimationFrame(() => dispatch(runHighlightSet(true)));
+  };
+  const undo = () => {
+    if (!result.previousRoutineId) return;
+    restore.mutate(result.previousRoutineId, {
+      onSuccess: () => {
+        dispatch(runDismissed());
+        toast.success('Versão anterior restaurada');
+      },
+      onError: () => toast.error('Não foi possível desfazer. Tente pelo Histórico.'),
+    });
+  };
+
+  return (
+    <section
+      aria-label="Resultado da rotina"
+      style={toneStyle(attention ? 'orange' : 'green')}
+      className="rounded-card bg-surface shadow-card"
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+        <span
+          aria-hidden="true"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-(--tone)/15 text-(--tone)"
+        >
+          <Icon name={attention ? 'alert' : 'check'} size={18} strokeWidth={2.5} />
+        </span>
+        <div role="status" className="min-w-0 flex-1 basis-64">
+          <p className="text-headline font-semibold">{title}</p>
+          <p className="text-footnote text-label-secondary">
+            <span className="font-semibold text-label tabular-nums">
+              {describeRun(result)
+                .split(' · ')
+                .map((part, index) => (
+                  <Fragment key={part}>
+                    {index > 0 ? <Dot /> : null}
+                    {part}
+                  </Fragment>
+                ))}
+            </span>
+            {partial > 0 ? (
+              <span className="font-semibold text-warning">
+                <Dot />
+                {partial} com menos tempo
+              </span>
+            ) : null}
+            {leftOut > 0 ? (
+              <span className="font-semibold text-warning">
+                <Dot />
+                {leftOut} {leftOut === 1 ? 'ficou' : 'ficaram'} fora
+              </span>
+            ) : null}
+            <span>
+              <Dot />
+              {source}
+            </span>
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {changed > 0 ? (
+            <Button size="sm" variant="ghost" icon="refresh" onClick={replay}>
+              Ver o que mudou
+            </Button>
+          ) : null}
+          {result.previousRoutineId && changed > 0 ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="restore"
+              loading={restore.isPending}
+              onClick={undo}
+            >
+              Desfazer
+            </Button>
+          ) : null}
+          <IconButton
+            icon="close"
+            label="Dispensar resultado"
+            onClick={() => dispatch(runDismissed())}
+          />
+        </div>
+      </div>
+      {items.length > 0 ? <NoticeDetails items={items} /> : null}
+    </section>
+  );
+}
+
+/** The notices of a run, folded under the result card. */
+function NoticeDetails({ items }: { items: readonly NoticeItem[] }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="border-t border-hairline">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((value) => !value)}
+        className="pressable flex min-h-11 w-full items-center gap-2 px-4 text-left text-footnote font-semibold text-label-secondary"
+      >
+        {open ? 'Ocultar detalhes' : `Ver detalhes (${items.length})`}
+        <Icon name="chevron-down" size={16} className={cn('shrink-0', open && 'rotate-180')} />
+      </button>
+      {open ? <NoticeList id={id} items={items} /> : null}
+    </div>
+  );
+}
+
+function NoticeList({ id, items }: { id: string; items: readonly NoticeItem[] }) {
+  return (
+    <ul id={id} className="flex flex-col divide-y divide-hairline border-t border-hairline">
+      {items.map((item) => (
+        <li key={item.key} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+          <div className="min-w-0 flex-1 basis-56">
+            <p className="text-body font-semibold">{item.title}</p>
+            <div className="text-footnote text-label-secondary">{item.body}</div>
+          </div>
+          {item.actions ? (
+            <div className="flex shrink-0 items-center gap-2">{item.actions}</div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function TasksLink() {
@@ -188,7 +397,7 @@ function StatusStrip({ items }: { items: readonly NoticeItem[] }) {
         className="pressable flex min-h-11 w-full items-center gap-3 rounded-card px-4 py-2 text-left"
       >
         <Icon name={warning ? 'alert' : 'info'} className="tone-text shrink-0" size={18} />
-        <span className="min-w-0 flex-1 truncate text-body font-medium">{summary}</span>
+        <span className="min-w-0 flex-1 text-body font-medium">{summary}</span>
         <span className="text-footnote text-label-secondary">
           {open ? 'Ocultar' : 'Ver detalhes'}
         </span>
@@ -198,22 +407,21 @@ function StatusStrip({ items }: { items: readonly NoticeItem[] }) {
           className={cn('shrink-0 text-label-tertiary', open && 'rotate-180')}
         />
       </button>
-      {open ? (
-        <ul id={id} className="flex flex-col divide-y divide-hairline border-t border-hairline">
-          {items.map((item) => (
-            <li key={item.key} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-              <div className="min-w-0 flex-1 basis-56">
-                <p className="text-body font-semibold">{item.title}</p>
-                <div className="text-footnote text-label-secondary">{item.body}</div>
-              </div>
-              {item.actions ? (
-                <div className="flex shrink-0 items-center gap-2">{item.actions}</div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {open ? <NoticeList id={id} items={items} /> : null}
     </section>
+  );
+}
+
+/**
+ * The separator between figures. A font's middle dot can sit off-centre in its advance, so it is
+ * centred in a box of its own; the spaces keep the text readable when copied or read aloud.
+ */
+function Dot() {
+  return (
+    <>
+      {' '}
+      <span className="inline-block w-1.5 text-center">·</span>{' '}
+    </>
   );
 }
 

@@ -75,7 +75,7 @@ export function Menu({ label, icon = 'more', indicator, children, className }: M
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => setOpen((value) => !value)}
-        className="pressable relative inline-flex size-11 items-center justify-center rounded-full bg-fill text-label hover:bg-fill-strong"
+        className="pressable relative inline-flex size-11 items-center justify-center rounded-control border border-separator bg-surface text-label hover:bg-fill"
       >
         <Icon name={icon} size={20} />
         {indicator ? (
