@@ -8,3 +8,4 @@ export * from './schemas/preferences';
 export * from './schemas/routine';
 export * from './schemas/ai';
 export * from './schemas/auth';
+export * from './schemas/integrations';

@@ -2,6 +2,7 @@ import { Injectable, type CanActivate, type ExecutionContext } from '@nestjs/com
 import { Reflector } from '@nestjs/core';
 import { AppError } from '../common/app-error';
 import { requestContext } from '../common/request-context';
+import { API_TOKEN_SCOPE } from '../api-tokens/api-token-scope';
 import { IS_PUBLIC } from './public.decorator';
 
 /**
@@ -18,6 +19,13 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) return true;
+    // Integration routes authenticate with a personal token instead: `ApiTokenAuth` pairs this
+    // metadata with `ApiTokenGuard`, which runs next and refuses anything but a valid token.
+    const tokenScope = this.reflector.getAllAndOverride<string | undefined>(API_TOKEN_SCOPE, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (tokenScope) return true;
     if (!requestContext.getStore()?.userId) throw AppError.unauthenticated();
     return true;
   }

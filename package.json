@@ -18,6 +18,7 @@
     "db:up": "docker compose up -d db",
     "eval:ai": "pnpm --filter @routinely/api eval:ai",
     "demo:reset": "pnpm --filter @routinely/api demo:reset",
+    "api-token": "pnpm --filter @routinely/api api-token",
     "check:secrets": "node scripts/check-secrets.mjs"
   },
   "lint-staged": {

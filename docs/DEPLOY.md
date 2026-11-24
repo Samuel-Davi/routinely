@@ -81,7 +81,7 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
    Depois rode o smoke test (seção 8) para confirmar que a API continua lendo e gravando: ele é o teste de que o papel
    usado pela connection string não é bloqueado pelo RLS. Se algo quebrar, desligue com
    `ALTER TABLE ... DISABLE ROW LEVEL SECURITY`.
-6. **Risco de pausa:** projeto sem atividade por 7 dias é pausado. O workflow diário **Reset demo account** (seção 11)
+6. **Risco de pausa:** projeto sem atividade por 7 dias é pausado. O workflow diário **Reset demo account** (seção 12)
    escreve no banco todo dia e evita isso, mas **o GitHub desliga workflows agendados de repositório público após 60
    dias sem atividade** ([docs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows));
    se acontecer, reative em _Actions → Reset demo account → Enable workflow_. Se o projeto pausar, use _Restore
@@ -100,7 +100,7 @@ Por que o Render mesmo dormindo: é o único serviço grátis **sem cartão** qu
    | `JWT_SECRET`                  | `openssl rand -base64 48` (≥ 32 caracteres; sem ele a API **recusa subir** em produção) |
    | `GEMINI_API_KEY`              | sua chave de <https://aistudio.google.com/apikey>                                       |
    | `CORS_ORIGINS`                | a URL do front (passo 4), ex.: `https://routinely.vercel.app`                           |
-   | `DEMO_EMAIL`, `DEMO_PASSWORD` | e-mail e senha **da conta demo** (invente; seção 11)                                    |
+   | `DEMO_EMAIL`, `DEMO_PASSWORD` | e-mail e senha **da conta demo** (invente; seção 12)                                    |
 
    As demais já vêm do `render.yaml`: `NODE_ENV=production`, `COOKIE_SECURE=true`, `REGISTRATION_ENABLED=false`,
    `DEMO_ENABLED=true`, `AI_DAILY_LIMIT=20`, `AI_GLOBAL_DAILY_LIMIT=100`, `AI_PLANNING_STRATEGY=order-day`,
@@ -225,7 +225,41 @@ e `-flash-lite` **500/dia**; `gemini-3.6-flash` e `gemini-3.8-flash` **só 20/di
 `gemini-3.5-flash-lite` também como modelo de _retry_, e `AI_GLOBAL_DAILY_LIMIT=100` mantém uma folga grande (cada
 geração usa 1 a 2 chamadas e cada estimativa, 1). Ajuste os dois limites à cota real da sua chave.
 
-## 11. Modo portfólio
+## 11. Integração só de leitura (Jarvis)
+
+O assistente lê o dia com um **token pessoal** de escopo `read:today` (ADR-030). O token não é uma sessão: ele só abre
+`GET /integrations/today`.
+
+**URL base:** a do Render, direto: `https://<seu-servico>.onrender.com`. O proxy `/api/*` da Vercel **não** repassa o
+header `Authorization`, então `https://<seu-site>.vercel.app/api/integrations/today` responde 401.
+
+**1. Criar o token** (ele aparece uma vez; guarde no `.env` do Jarvis). Pela linha de comando, com as variáveis de
+produção no shell, como no `demo:reset`:
+
+```bash
+DATABASE_URL='<session pooler>' DIRECT_URL='<session pooler>' NODE_ENV=production \
+JWT_SECRET='<o mesmo do Render>' GEMINI_API_KEY= \
+pnpm api-token create --email <seu e-mail> --label jarvis
+```
+
+Ou logado no app, pelo console do navegador: `await (await fetch('/api/api-tokens', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ label: 'jarvis' }) })).json()`.
+`pnpm api-token list --email …` lista (sem o token) e `pnpm api-token revoke --email … --id <id>` revoga
+(ou `DELETE /api-tokens/:id` com a sessão).
+
+**2. Testar:**
+
+```bash
+API=https://<seu-servico>.onrender.com
+curl -s "$API/health"   # acorda a instância grátis (até ~1 min na primeira chamada)
+curl -s -H "Authorization: Bearer $ROUTINELY_TOKEN" "$API/integrations/today"
+curl -s -H "Authorization: Bearer $ROUTINELY_TOKEN" "$API/integrations/today?date=2026-11-24"
+```
+
+Respostas: `200` com `{ date, timezone, blocks, commitments, tasksDue, routineNotice }` (horários `HH:mm` no seu
+fuso; um bloco que passa da meia-noite termina em `24:00`), `401` para token ausente, inválido ou revogado, `429`
+acima de 30 chamadas/min por token e `400` para uma data inválida.
+
+## 12. Modo portfólio
 
 Configuração pensada para um link público de currículo: **ninguém se cadastra, visitantes usam uma conta demo sem IA e
 só você usa a IA de verdade.**

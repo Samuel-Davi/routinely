@@ -81,6 +81,7 @@ model User {
   estimateCache    EstimateCache[]
   refreshTokens    RefreshToken[]
   aiUsage          AiUsage[]
+  apiTokens        ApiToken[]
 }
 
 /// Rotating refresh tokens: only the SHA-256 hash is stored. A used token that shows up
@@ -98,6 +99,25 @@ model RefreshToken {
 
   @@index([userId])
   @@index([familyId])
+}
+
+/// Personal access tokens for read-only integrations (ADR-030). Only the SHA-256 hash is
+/// stored; the plain token is shown once, on creation.
+model ApiToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  label      String
+  // First characters after "rtly_", to tell tokens apart in a list
+  prefix     String
+  tokenHash  String    @unique
+  scopes     String[]
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt DateTime? @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// AI uses per user and UTC day, to protect the free quota (AI_DAILY_LIMIT).
