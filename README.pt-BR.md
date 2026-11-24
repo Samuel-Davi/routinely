@@ -8,24 +8,28 @@
 O Routinely monta uma **rotina semanal com IA** a partir dos seus compromissos fixos e das suas tarefas (prioridade e prazo). A IA propõe o plano; um validador determinístico decide o que é salvo; um planejador heurístico garante que sempre exista uma rotina, mesmo quando a IA não está disponível.
 
 <p align="center">
-  <img src="docs/screenshots/after/semana-desktop-light.png" alt="Calendário semanal com blocos de tarefas" width="820">
+  <img src="docs/screenshots/current/semana-run-result-light.png" alt="Semana logo depois de gerar: o cartão de resultado, as tarefas abertas agrupadas por compromisso e o calendário com o bloco movido em destaque" width="820">
 </p>
 
 ## Destaques
 
 - **Compromissos fixos e tarefas** com **estimativa de esforço por IA** (complexidade, duração, divisível ou não) e ajuste manual.
 - **Gerar rotina**: as tarefas são distribuídas nos horários livres, respeitando janela diária, almoço, bloco máximo de foco, intervalo entre blocos, deslocamento e prazos. Se uma tarefa não cabe inteira (por exemplo, precisa de 8 h e só há 6 h), ela é **alocada com o que couber e sinalizada**, nunca descartada em silêncio. Tarefas de mesma prioridade dividem o tempo escasso de forma justa.
-- **Calendário semanal** (visão diária com swipe no celular) com **drag and drop** para mover e redimensionar blocos, validado contra conflitos em tempo real.
+- **Veja o que cada geração mudou**: depois de gerar ou replanejar, um cartão de resultado diz quantos blocos foram criados ou movidos e quais tarefas não couberam, os blocos alterados ficam em destaque na grade e o **Desfazer** traz a versão anterior de volta.
+- **Calendário semanal** (visão de semana ou de dia, com swipe entre os dias no celular) com **drag and drop** para mover e redimensionar blocos, validado contra conflitos em tempo real. Compromissos aparecem como eventos na sua cor; tarefas, como cartões.
+- **Tarefas abertas ao lado da semana**, agrupadas por compromisso, com o prazo e quanto da tarefa a semana comporta ("Tudo agendado", "1h de 3h agendadas"). Clicar numa tarefa destaca os blocos dela.
 - **Replanejar** só o futuro, preservando blocos travados e concluídos.
 - **Histórico de versões** com resumo das mudanças e restauração.
 - **Contas**: e-mail e senha, isolamento de dados por usuário, cotas diárias de IA e um **modo portfólio** opcional (cadastro fechado e uma conta demo compartilhada que nunca chama a IA).
+- **Tema claro, escuro ou do sistema**, trocado pela barra lateral (no celular, pela barra superior) e aplicado antes da primeira pintura.
+- **Tokens pessoais só de leitura** para integrações: `GET /integrations/today` devolve os compromissos e blocos de hoje para um assistente de voz ou um script (ADR-030).
 
 > **A IA propõe; o backend valida.** Nenhuma alocação é salva sem passar por um validador determinístico. Se a IA falhar (resposta inválida, limite de uso, sem chave), um planejador heurístico ainda gera a rotina e a interface avisa ("Rotina gerada sem IA").
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/after/tarefas-desktop-light.png" alt="Lista de tarefas" width="480"></td>
-    <td><img src="docs/screenshots/after/semana-mobile-dark.png" alt="Visão diária no celular, tema escuro" width="180"></td>
+    <td><img src="docs/screenshots/current/semana-desktop-dark.png" alt="Semana no tema escuro" width="560"></td>
+    <td><img src="docs/screenshots/current/semana-mobile-light.png" alt="Visão do dia no celular" width="180"></td>
   </tr>
 </table>
 
@@ -225,7 +229,9 @@ A publicação usa Vercel (web), Render (API) e Supabase (PostgreSQL), todos em 
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): registros de decisões de arquitetura
 - [`docs/DEPLOY.md`](docs/DEPLOY.md): CI, CD e modo portfólio
 - [`docs/SUPABASE.md`](docs/SUPABASE.md): usando o Supabase como banco
-- [`docs/DESIGN-NOTES.md`](docs/DESIGN-NOTES.md): redesign da interface e medições de acessibilidade
+- [`PRODUCT.md`](PRODUCT.md): para quem é o produto, propósito e princípios
+- [`DESIGN.md`](DESIGN.md): o design system (tokens, tipografia, componentes, temas claro e escuro)
+- [`docs/DESIGN-NOTES.md`](docs/DESIGN-NOTES.md): um redesign anterior da interface e suas medições de acessibilidade
 
 ## Licença
 
