@@ -59,7 +59,25 @@ export const taskSchema = z.object({
   aiRationale: z.string().nullable(),
   estimationStatus: estimationStatusSchema,
   estimationSource: estimationSourceSchema.nullable(),
+  /** Minutes of this task's blocks in the active routine that were marked as done. */
+  completedMinutes: z.number().int().nonnegative(),
+  /** Minutes of all this task's blocks in the active routine (done or not). */
+  scheduledMinutes: z.number().int().nonnegative(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
 export type Task = z.infer<typeof taskSchema>;
+
+/**
+ * Share of the task already done, from 0 to 1: completed block minutes over the task's
+ * total effort (the estimate, or the scheduled time when that is larger). A finished task
+ * is always 1. `null` when there is nothing to measure yet (no estimate and no blocks).
+ */
+export function taskProgress(
+  task: Pick<Task, 'status' | 'estimatedMinutes' | 'completedMinutes' | 'scheduledMinutes'>,
+): number | null {
+  if (task.status === 'DONE') return 1;
+  const total = Math.max(task.estimatedMinutes ?? 0, task.scheduledMinutes);
+  if (total === 0) return null;
+  return Math.min(1, task.completedMinutes / total);
+}

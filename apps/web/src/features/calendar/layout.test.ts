@@ -51,6 +51,12 @@ describe('calendar layout', () => {
     expect(commitmentsForDay('2026-11-14', commitments, bounds)).toEqual([]);
   });
 
+  it('shows a one-off commitment only on its date', () => {
+    const dentist = [makeCommitment({ title: 'Dentista', daysOfWeek: [6], date: '2026-11-14' })];
+    expect(commitmentsForDay('2026-11-14', dentist, bounds)).toHaveLength(1);
+    expect(commitmentsForDay('2026-11-21', dentist, bounds)).toEqual([]);
+  });
+
   it('places blocks on the day they start, in the user timezone', () => {
     const lateBlock = makeBlock({
       start: '2026-11-10T01:00:00.000Z',

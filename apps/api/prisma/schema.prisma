@@ -115,8 +115,10 @@ model FixedCommitment {
   id         String             @id @default(uuid()) @db.Uuid
   userId     String             @db.Uuid
   title      String
-  // 0 = Sunday … 6 = Saturday
+  // 0 = Sunday … 6 = Saturday. A one-off commitment keeps the weekday of its date here.
   daysOfWeek Int[]
+  // One-off commitment: "YYYY-MM-DD" in the user's timezone. Null = repeats weekly.
+  date       String?
   // "HH:mm" wall-clock time in the user's timezone
   startTime  String
   endTime    String

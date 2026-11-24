@@ -1,6 +1,6 @@
 'use client';
 
-import type { Task } from '@routinely/shared';
+import { taskProgress, type Task } from '@routinely/shared';
 import { useId, useState } from 'react';
 import { Badge, Button, Icon, IconButton, Spinner } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -74,6 +74,35 @@ function EstimateStatus({ task, onReestimate }: { task: Task; onReestimate: () =
     );
   }
   return null;
+}
+
+/** Share of the task already done, from the blocks marked as done in the calendar. */
+function Progress({ task }: { task: Task }) {
+  const progress = taskProgress(task);
+  // Nothing done yet on a task without blocks: a bar at 0% would only add noise.
+  if (progress === null || (progress === 0 && task.scheduledMinutes === 0)) return null;
+  const percent = Math.round(progress * 100);
+  const total = Math.max(task.estimatedMinutes ?? 0, task.scheduledMinutes);
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        role="progressbar"
+        aria-label={`Progresso de ${task.title}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        className="h-1.5 flex-1 overflow-hidden rounded-full bg-fill-strong"
+      >
+        <div
+          className={cn('h-full rounded-full', percent === 100 ? 'bg-success' : 'bg-accent')}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <span className="shrink-0 text-footnote text-label-secondary tabular-nums">
+        {percent}% · {formatDuration(task.completedMinutes)} de {formatDuration(total)}
+      </span>
+    </div>
+  );
 }
 
 /** Everything that is not needed to scan the list: effort, source and the AI's reasoning. */
@@ -204,6 +233,8 @@ export function TaskCard({
             {done ? null : ` · ${deadline.text}`}
           </span>
         </div>
+
+        {done ? null : <Progress task={task} />}
 
         {done ? null : <EstimateStatus task={task} onReestimate={() => onReestimate(task)} />}
 
