@@ -58,7 +58,8 @@ describe('CalendarScreen', () => {
     expect(within(monday).getByText('Academia')).toBeInTheDocument();
     expect(
       within(monday).getByRole('button', {
-        name: 'Tarefa: Preparar apresentação, 17:00 às 18:00, prioridade alta',
+        // the commitment is spoken: on screen it is only a coloured dot
+        name: 'Tarefa: Preparar apresentação, 17:00 às 18:00, prioridade alta, Sem compromisso',
       }),
     ).toBeInTheDocument();
 
@@ -121,8 +122,9 @@ describe('CalendarScreen', () => {
     const { store } = renderWithProviders(<CalendarScreen />);
     await screen.findByRole('heading', { level: 1 });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Mais opções' }));
-    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Visão diária' }));
+    // the view switch sits in the header, not in a menu
+    const modes = screen.getByRole('radiogroup', { name: 'Modo de visão' });
+    await userEvent.click(within(modes).getByRole('radio', { name: 'Dia' }));
     expect(screen.getAllByRole('region')).toHaveLength(1);
     expect(screen.getByRole('region', { name: 'terça-feira, 10 de novembro' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('10 de novembro');

@@ -194,7 +194,8 @@ describe('UserMenu', () => {
   it('shows the demo seal instead of a name for the demo account', async () => {
     server.use(http.get(`${API}/auth/me`, () => HttpResponse.json(demoUser)));
     renderWithProviders(<UserMenu />);
-    expect(await screen.findByText('Modo demo, sem IA')).toBeInTheDocument();
+    expect(await screen.findByText('Modo demo')).toBeInTheDocument();
+    expect(screen.getByText('Sem IA')).toBeInTheDocument();
     expect(screen.queryByText('Conta demo')).not.toBeInTheDocument();
   });
 

@@ -18,7 +18,13 @@ import { apiRequest, errorMessage, isApiError } from '@/lib/api-client';
 import { VIOLATION_LABEL } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-client';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
-import { routineJobSettled, routineJobStarted, selectPendingRoutineId } from '@/lib/store/ui-slice';
+import {
+  routineJobSettled,
+  routineJobStarted,
+  runFinished,
+  selectPendingRoutineId,
+} from '@/lib/store/ui-slice';
+import { compareRuns } from './run-result';
 
 const aiStatusSchema = z.object({
   provider: z.string(),
@@ -117,10 +123,13 @@ export function useRoutineJob(): { pending: boolean } {
     if (pendingId === null) return;
     if (status === 'READY') {
       const routine = job.data as Routine;
+      // Compare with the version still in the cache before it is refreshed: the result card
+      // and the grid's highlight say what this run changed (no toast: the card is the answer).
+      const previous = queryClient.getQueryData<Routine | null>(queryKeys.routines.active) ?? null;
+      dispatch(runFinished(compareRuns(previous, routine)));
+      queryClient.setQueryData(queryKeys.routines.active, routine);
       void invalidateRoutineData(queryClient);
       dispatch(routineJobSettled());
-      if (routine.source === 'HEURISTIC') toast.info('Rotina gerada sem IA');
-      else toast.success(routine.trigger === 'REPLAN' ? 'Rotina replanejada' : 'Rotina gerada');
     } else if (status === 'FAILED' || failed) {
       dispatch(routineJobSettled());
       void invalidateRoutineData(queryClient);

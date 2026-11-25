@@ -9,11 +9,17 @@ import {
   isBlockDone,
   type PositionedBlock,
 } from '@/features/calendar/layout';
+import { useLine } from '@/features/calendar/lines';
 import { TaskBlockView, blockAccessibleName } from '@/features/calendar/task-block';
 import { cn } from '@/lib/cn';
 import { selectDrag } from '@/lib/store/drag-slice';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
-import { panelOpened } from '@/lib/store/ui-slice';
+import {
+  panelOpened,
+  selectFocusedTaskId,
+  selectLastRun,
+  selectRunHighlight,
+} from '@/lib/store/ui-slice';
 import { useRoutineDnd } from './routine-dnd';
 
 /**
@@ -32,6 +38,11 @@ export function DraggableBlock({
   const dispatch = useAppDispatch();
   const dnd = useRoutineDnd();
   const drag = useAppSelector(selectDrag);
+  const lastRun = useAppSelector(selectLastRun);
+  const highlight = useAppSelector(selectRunHighlight);
+  const changed = highlight && (lastRun?.changedBlockIds.includes(block.id) ?? false);
+  const focused = useAppSelector(selectFocusedTaskId) === block.taskId;
+  const line = useLine(block.task.commitmentId);
   const done = isBlockDone(block);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: block.id,
@@ -101,9 +112,14 @@ export function DraggableBlock({
       role="button"
       tabIndex={0}
       aria-roledescription={done || dnd.locked ? undefined : 'bloco arrastável'}
-      title={dnd.locked ? 'A rotina está sendo gerada. Aguarde para editar os blocos.' : undefined}
-      aria-label={blockAccessibleName(block, timezone)}
+      title={
+        dnd.locked
+          ? 'A rotina está sendo gerada. Aguarde para editar os blocos.'
+          : `${block.task.title} · ${line.title}`
+      }
+      aria-label={blockAccessibleName(block, timezone, line.title)}
       data-no-swipe
+      data-task-id={block.taskId}
       onClick={() => {
         if (suppressClick.current) {
           suppressClick.current = false;
@@ -135,6 +151,8 @@ export function DraggableBlock({
         preview={active && drag.preview ? drag.preview : undefined}
         dragging={isDragging || resizing}
         conflict={conflict}
+        changed={changed}
+        focused={focused}
       />
       {done || dnd.locked ? null : (
         <div

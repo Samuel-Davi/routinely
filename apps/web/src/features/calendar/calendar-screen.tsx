@@ -6,12 +6,14 @@ import { useCommitments } from '@/features/commitments/api';
 import { usePreferences } from '@/features/preferences/api';
 import { useActiveRoutine } from '@/features/routine/api';
 import { errorMessage } from '@/lib/api-client';
+import { cn } from '@/lib/cn';
 import { env } from '@/lib/env';
 import { selectSelectedDate, selectWeekDates } from '@/lib/store/calendar-slice';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { panelOpened } from '@/lib/store/ui-slice';
 import { CalendarFiltersSheet } from './calendar-filters';
 import { CalendarHeader } from './calendar-header';
+import { LinesProvider, useLine } from './lines';
 import type { PositionedBlock } from './layout';
 import { TaskBlockView, blockAccessibleName } from './task-block';
 import { useNow, useResponsiveViewMode, useToday } from './use-calendar-clock';
@@ -31,6 +33,8 @@ export interface CalendarSlots {
   /** Wraps the grid (e.g. with a drag & drop context). */
   wrapGrid?: (grid: ReactNode) => ReactNode;
   renderOverlay?: (date: string) => ReactNode;
+  /** Side panel beside the grid on wide screens (open tasks). */
+  aside?: ReactNode;
 }
 
 function CalendarSkeleton() {
@@ -52,6 +56,7 @@ export function CalendarScreen({
   renderBlock,
   wrapGrid,
   renderOverlay,
+  aside,
 }: CalendarSlots) {
   const dispatch = useAppDispatch();
   const preferences = usePreferences();
@@ -89,19 +94,11 @@ export function CalendarScreen({
 
   const prefs = preferences.data;
   const defaultBlock = (positioned: PositionedBlock) => (
-    <button
-      type="button"
-      data-no-swipe
-      aria-label={blockAccessibleName(positioned.block, prefs.timezone)}
-      onClick={() => dispatch(panelOpened({ type: 'block-details', blockId: positioned.block.id }))}
-      className="pressable block h-full w-full"
-    >
-      <TaskBlockView
-        block={positioned.block}
-        timezone={prefs.timezone}
-        height={positioned.height}
-      />
-    </button>
+    <ReadOnlyBlock
+      positioned={positioned}
+      timezone={prefs.timezone}
+      onOpen={() => dispatch(panelOpened({ type: 'block-details', blockId: positioned.block.id }))}
+    />
   );
 
   const grid = (
@@ -119,7 +116,7 @@ export function CalendarScreen({
   );
 
   return (
-    <>
+    <LinesProvider commitments={commitments.data}>
       <CalendarHeader
         weekDates={weekDates}
         selectedDate={selectedDate}
@@ -127,20 +124,57 @@ export function CalendarScreen({
         actions={actions}
         menuItems={menuItems}
       />
-      {notices ? <div className="mb-4 flex flex-col gap-2">{notices}</div> : null}
-      {routine.data === null
-        ? (emptyRoutine ?? (
-            <EmptyState
-              icon="sparkles"
-              compact
-              title="Você ainda não tem uma rotina"
-              description="Cadastre compromissos e tarefas e gere a rotina da semana."
-              className="mb-4 rounded-card bg-surface shadow-card"
-            />
-          ))
-        : null}
-      {wrapGrid ? wrapGrid(grid) : grid}
+      <div
+        className={cn(
+          aside !== undefined &&
+            'xl:grid xl:grid-cols-[15rem_minmax(0,1fr)] xl:items-start xl:gap-4',
+        )}
+      >
+        {aside ? (
+          <div className="sticky top-6 hidden max-h-[calc(100dvh-3rem)] xl:flex">{aside}</div>
+        ) : null}
+        <div className="min-w-0">
+          {notices ? <div className="mb-4 flex flex-col gap-2">{notices}</div> : null}
+          {routine.data === null
+            ? (emptyRoutine ?? (
+                <EmptyState
+                  icon="sparkles"
+                  compact
+                  title="Você ainda não tem uma rotina"
+                  description="Cadastre compromissos e tarefas e gere a rotina da semana."
+                  className="mb-4 rounded-card bg-surface shadow-card"
+                />
+              ))
+            : null}
+          {wrapGrid ? wrapGrid(grid) : grid}
+        </div>
+      </div>
       <CalendarFiltersSheet />
-    </>
+    </LinesProvider>
+  );
+}
+
+/** A block without drag & drop: opens its details. */
+function ReadOnlyBlock({
+  positioned,
+  timezone,
+  onOpen,
+}: {
+  positioned: PositionedBlock;
+  timezone: string;
+  onOpen: () => void;
+}) {
+  const line = useLine(positioned.block.task.commitmentId);
+  return (
+    <button
+      type="button"
+      data-no-swipe
+      aria-label={blockAccessibleName(positioned.block, timezone, line.title)}
+      title={`${positioned.block.task.title} · ${line.title}`}
+      onClick={onOpen}
+      className="pressable block h-full w-full"
+    >
+      <TaskBlockView block={positioned.block} timezone={timezone} height={positioned.height} />
+    </button>
   );
 }

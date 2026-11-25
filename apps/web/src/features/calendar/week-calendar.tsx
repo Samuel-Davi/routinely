@@ -13,8 +13,10 @@ import {
 } from '@/lib/store/calendar-slice';
 import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
 import { DayColumn, dayLabel } from './day-column';
+import { LinesLegend } from './lines';
 import {
   HOUR_HEIGHT,
+  commitmentsForDay,
   filterBlocks,
   gridBounds,
   gridHeight,
@@ -60,12 +62,23 @@ export function WeekCalendar({
   const bounds = useMemo(() => gridBounds(prefs), [prefs]);
   const visibleBlocks = useMemo(() => filterBlocks(blocks, filters), [blocks, filters]);
   const dayMode = viewMode === 'day';
+  const runningLines = useMemo(
+    () =>
+      new Set(
+        dates.flatMap((date) =>
+          commitmentsForDay(date, commitments, bounds).map(({ commitment }) => commitment.id),
+        ),
+      ),
+    [dates, commitments, bounds],
+  );
 
   return (
-    <div className="rounded-card bg-surface shadow-[0_0_0_1px_var(--hairline)]">
+    <div className="rounded-card bg-surface shadow-card">
+      {/* The day view (phones) skips the key: every event names its commitment. */}
+      {dayMode ? null : <LinesLegend commitmentIds={runningLines} />}
       {dayMode ? null : (
         <div
-          className="sticky top-(--nav-height) z-20 flex rounded-t-card border-b border-hairline bg-surface pl-12"
+          className="sticky top-(--nav-height) z-20 flex border-b border-hairline bg-surface pl-12 md:top-0"
           aria-hidden="true"
         >
           {dates.map((date) => {
@@ -76,7 +89,12 @@ export function WeekCalendar({
                 key={date}
                 className="flex min-w-0 flex-1 items-baseline justify-center gap-1.5 border-l border-hairline py-2 first:border-l-0"
               >
-                <span className="text-footnote font-medium text-label-secondary">
+                <span
+                  className={cn(
+                    'text-footnote font-medium text-label-secondary',
+                    isToday && 'text-accent-text',
+                  )}
+                >
                   {WEEKDAY_SHORT[dow]}
                 </span>
                 <span

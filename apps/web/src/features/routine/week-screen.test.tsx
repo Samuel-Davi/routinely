@@ -127,10 +127,12 @@ describe('WeekScreen', () => {
       await screen.findByRole('button', { name: BLOCK_NAME }, { timeout: 4000 }),
     ).toBeInTheDocument();
     expect(polls).toBeGreaterThanOrEqual(2);
-    // the notice is one collapsed strip: the title is its summary, the details open on demand
-    expect(screen.getByRole('region', { name: 'Avisos da rotina' })).toHaveTextContent(
-      'Rotina gerada sem IA',
-    );
+    // the run answers with a result card: what changed, how, and the notices folded under it
+    const result = screen.getByRole('region', { name: 'Resultado da rotina' });
+    expect(result).toHaveTextContent('Semana montada');
+    expect(result).toHaveTextContent('1 bloco · 1 novo · sem IA');
+    // first generation: nothing to undo
+    expect(within(result).queryByRole('button', { name: 'Desfazer' })).not.toBeInTheDocument();
     expect(screen.queryByText('IA não configurada. Rotina gerada sem IA.')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }));
     expect(screen.getByText('IA não configurada. Rotina gerada sem IA.')).toBeInTheDocument();
@@ -244,6 +246,7 @@ describe('WeekScreen', () => {
       }),
       http.get(`${API}/routines/${next.id}`, () => HttpResponse.json(next)),
     );
+    const previousId = world.routine?.id;
     const { store } = renderWithProviders(<WeekScreen />);
     const strip = await screen.findByRole('region', { name: 'Avisos da rotina' });
     expect(strip).toHaveTextContent('Sua rotina pode estar desatualizada');
@@ -258,8 +261,41 @@ describe('WeekScreen', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Replanejar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Replanejar' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Replanejar' }));
-    expect(await screen.findByText('Rotina replanejada')).toBeInTheDocument();
+    const result = await screen.findByRole('region', { name: 'Resultado da rotina' });
+    expect(result).toHaveTextContent('Semana replanejada');
     expect(replans).toBe(1);
+
+    // "Desfazer" restores the version the run replaced
+    let restored: string | undefined;
+    server.use(
+      http.post(`${API}/routines/:id/restore`, ({ params }) => {
+        restored = String(params.id);
+        return HttpResponse.json(world.routine);
+      }),
+    );
+    await userEvent.click(within(result).getByRole('button', { name: 'Desfazer' }));
+    await waitFor(() => expect(restored).toBe(previousId));
+    expect(screen.queryByRole('region', { name: 'Resultado da rotina' })).not.toBeInTheDocument();
+  });
+
+  it('lists open tasks beside the grid and marks a picked one on it', async () => {
+    const world = mockApi();
+    const taskId = world.routine?.blocks[0]?.taskId;
+    server.use(http.get(`${API}/tasks`, () => HttpResponse.json([makeTask({ id: taskId })])));
+    renderWithProviders(<WeekScreen />);
+    const panel = await screen.findByRole('complementary', { name: 'Tarefas abertas' });
+    const station = await within(panel).findByRole('button', { name: /Preparar apresentação/ });
+    expect(station).toHaveTextContent('1h de 3h agendadas');
+    await userEvent.click(station);
+    expect(station).toHaveAttribute('aria-pressed', 'true');
+    const block = await screen.findByRole('button', { name: BLOCK_NAME });
+    expect(block.querySelector('.station-focused')).not.toBeNull();
+
+    await userEvent.click(within(panel).getByRole('button', { name: 'Ocultar painel de tarefas' }));
+    expect(
+      screen.queryByRole('complementary', { name: 'Tarefas abertas' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mostrar painel de tarefas' })).toBeInTheDocument();
   });
 
   it('sends a trimmed quick instruction, counts words and blocks an oversized one', async () => {

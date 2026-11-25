@@ -1,18 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { Button, EmptyState } from '@/components/ui';
+import { Button, EmptyState, IconButton } from '@/components/ui';
 import { CalendarScreen } from '@/features/calendar/calendar-screen';
 import { useCommitments } from '@/features/commitments/api';
 import { usePreferences } from '@/features/preferences/api';
 import { useTasks } from '@/features/tasks/api';
-import { useAppDispatch } from '@/lib/store/hooks';
-import { panelOpened } from '@/lib/store/ui-slice';
+import { useAppDispatch, useAppSelector } from '@/lib/store/hooks';
+import { panelOpened, selectTasksPanelOpen, tasksPanelToggled } from '@/lib/store/ui-slice';
 import { useActiveRoutine, useRoutineJob } from './api';
 import { BlockDetailsSheet } from './block-details-sheet';
 import { DraggableBlock } from './draggable-block';
 import { ReplanMenuItem, RoutineActions } from './routine-actions';
 import { DayDropZone, RoutineDndProvider } from './routine-dnd';
+import { TasksPanel } from './tasks-panel';
 import { RoutineNotices } from './routine-notices';
 
 /** The week: calendar + everything you can do with the routine on it. */
@@ -23,6 +24,7 @@ export function WeekScreen() {
   const routine = useActiveRoutine();
   const tasks = useTasks();
   const { pending } = useRoutineJob();
+  const panelOpen = useAppSelector(selectTasksPanelOpen);
 
   const blocks = routine.data?.blocks ?? [];
   const hasOpenTasks = tasks.data?.some((task) => task.status !== 'DONE') ?? false;
@@ -30,9 +32,28 @@ export function WeekScreen() {
 
   return (
     <CalendarScreen
-      actions={<RoutineActions hasRoutine={Boolean(routine.data)} pending={pending} />}
+      actions={
+        <>
+          {panelOpen ? null : (
+            <div className="hidden xl:block">
+              <IconButton
+                icon="checklist"
+                label="Mostrar painel de tarefas"
+                onClick={() => dispatch(tasksPanelToggled())}
+              />
+            </div>
+          )}
+          <RoutineActions hasRoutine={Boolean(routine.data)} pending={pending} />
+        </>
+      }
+      aside={panelOpen ? <TasksPanel /> : undefined}
       menuItems={(close) =>
-        routine.data ? <ReplanMenuItem pending={pending} close={close} /> : null
+        // On wide screens "Replanejar" is a button beside "Gerar rotina"; the menu keeps it for phones.
+        routine.data ? (
+          <div className="md:hidden">
+            <ReplanMenuItem pending={pending} close={close} />
+          </div>
+        ) : null
       }
       notices={
         pending || routine.data ? (
@@ -57,7 +78,7 @@ export function WeekScreen() {
               hasOpenTasks ? (
                 <Button
                   variant="primary"
-                  icon="sparkles"
+                  icon="arrow-right"
                   onClick={() => dispatch(panelOpened({ type: 'generate-routine' }))}
                 >
                   Gerar rotina

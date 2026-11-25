@@ -9,3 +9,4 @@ apps/api/prisma/migrations
 scripts/*.playwright.js
 docs/screenshots
 backups
+.impeccable

@@ -8,24 +8,28 @@
 Routinely builds a **weekly routine with AI** from your fixed commitments and your tasks (priority and deadline). The AI proposes a plan; a deterministic validator decides what is saved; a heuristic planner guarantees there is always a routine, even when the AI is unavailable.
 
 <p align="center">
-  <img src="docs/screenshots/after/semana-desktop-light.png" alt="Weekly calendar with scheduled task blocks" width="820">
+  <img src="docs/screenshots/current/semana-run-result-light.png" alt="Week view right after generating: the result card, open tasks grouped by commitment and the calendar with the moved block highlighted" width="820">
 </p>
 
 ## Highlights
 
 - **Fixed commitments and tasks** with **AI effort estimation** (complexity, duration, splittable or not) and manual override.
 - **Generate routine**: tasks are placed in free slots respecting the daily window, lunch break, maximum focus block, minimum gap between blocks, travel time and deadlines. When a task does not fit entirely (for example it needs 8 h and only 6 h are free), it is **scheduled with the time that fits and flagged**, never silently dropped. Tasks of the same priority share scarce time fairly.
-- **Weekly calendar** (daily view with swipe on mobile) with **drag and drop** to move and resize blocks, validated against conflicts in real time.
+- **See what each run changed**: after generating or replanning, a result card tells how many blocks were added or moved and which tasks did not fit, the changed blocks are highlighted on the grid, and **Undo** brings the previous version back.
+- **Weekly calendar** (week or day view, swipe between days on mobile) with **drag and drop** to move and resize blocks, validated against conflicts in real time. Commitments show as events in their colour; tasks as cards.
+- **Open tasks beside the week**, grouped by commitment, with the deadline and how much of the task this week holds ("Tudo agendado", "1h de 3h agendadas"). Picking one highlights its blocks.
 - **Replan** only the future, preserving locked and completed blocks.
 - **Version history** with a change summary and restore.
 - **Accounts**: email and password, per-user data isolation, daily AI quotas, and an optional **portfolio mode** (closed signup plus a shared demo account that never calls the AI).
+- **Light, dark or system theme**, switchable from the sidebar (phones: the top bar) and applied before the first paint.
+- **Read-only personal tokens** for integrations: `GET /integrations/today` returns today's commitments and blocks for a voice assistant or a script (ADR-030).
 
 > **The AI proposes; the backend validates.** No allocation is stored without passing a deterministic validator. If the AI fails (invalid response, rate limit, no key), a heuristic planner still produces a routine, and the UI says so ("Routine generated without AI").
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/after/tarefas-desktop-light.png" alt="Task list" width="480"></td>
-    <td><img src="docs/screenshots/after/semana-mobile-dark.png" alt="Daily view on mobile, dark theme" width="180"></td>
+    <td><img src="docs/screenshots/current/semana-desktop-dark.png" alt="Week view in the dark theme" width="560"></td>
+    <td><img src="docs/screenshots/current/semana-mobile-light.png" alt="Day view on mobile" width="180"></td>
   </tr>
 </table>
 
@@ -225,7 +229,9 @@ The published setup uses Vercel (web), Render (API) and Supabase (PostgreSQL), a
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): architecture decision records
 - [`docs/DEPLOY.md`](docs/DEPLOY.md): CI, CD and portfolio mode
 - [`docs/SUPABASE.md`](docs/SUPABASE.md): using Supabase as the database
-- [`docs/DESIGN-NOTES.md`](docs/DESIGN-NOTES.md): interface redesign and accessibility measurements
+- [`PRODUCT.md`](PRODUCT.md): who the product is for, its purpose and principles
+- [`DESIGN.md`](DESIGN.md): the design system (tokens, type, components, light and dark themes)
+- [`docs/DESIGN-NOTES.md`](docs/DESIGN-NOTES.md): an earlier interface redesign and its accessibility measurements
 
 ## License
 
